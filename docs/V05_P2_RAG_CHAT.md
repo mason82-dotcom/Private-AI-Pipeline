@@ -71,6 +71,31 @@ git pull --ff-only origin feature/p2-rag-chat-citations
 
 **Wichtige Grenze:** Auch ein erfolgreicher Test ist kein Docker-Image-Build und keine Live-Browser-/Produktivfreigabe. Dieser E2E-Smoke belegt die realen HTTP-Server- und Modellpfade ohne neue Ports von außen.
 
+## Echte Pi-Abnahme: 25.10.2026 – Transport bestanden, RAG-Qualität offen
+
+**Echter Ollama-Test mit `qwen3:0.6b`:**
+
+- Temporäre Datenbank, zwei Seiten PDF, FTS5-Gateway und authentifizierte Light Console über Loopback erfolgreich.
+- Richtige Fundstelle: `rag-hardwaretest.pdf`, **Seite 2**, Kennung `[Q1]`.
+- SSE vollständig, **52 Zeichen** Modellantwort in **27,7 s**; gesamte Testdauer **28,2 s**.
+- RAM verfügbar: **3,42 → 2,76 GiB**; Swap belegt: **3,71 → 3,79 GiB**. Dies sind Momentaufnahmen, keine Spitzenlastmessung.
+- **Qualitätsmangel:** Die Antwort lautete *„Die gefundenen Dokumente belegen dazu keine Antwort.“* und enthielt kein `[Q1]`, obwohl die relevante PDF-Seite den Zusammenhang zwischen Hydraulikpumpe, Drucköl und Baggerzylindern beschreibt.
+- Daher **Transport-PASS**, aber **Antwortqualitäts-Gate NICHT bestanden**. Weder produktiver Einsatz noch PR-Merge sind dadurch freigegeben.
+
+**Korrekturen im Branch:** Die kurze RAG-Systemnachricht fordert jetzt eine konkrete Antwort aus der Quelle, ohne die frühere Ablehnungsformulierung als wörtliche Vorlage anzubieten. Das echte Pi-Smoke-Skript bewertet nun das konkrete Testbeispiel separat: Antwort enthält `Druck`, `Zylinder`, die richtige Quellen-ID `[Q1]` und keine ungegründete Ablehnung. Dies ist **nur eine Fixture-Prüfung, keine allgemeine Halluzinationsdetektion**. Der Test gibt RAM- und Swap-Werte auch dann aus, wenn die Qualitätsprüfung fehlschlägt. Neue Tests und der echte Modelllauf nach der Änderung stehen aus.
+
+```bash
+cd ~/Projekte/Private-AI-Pipeline-P2-Dev
+git pull --ff-only origin feature/p2-rag-chat-citations
+.venv/bin/python -m unittest discover -s tests -p test_p2_rag.py -v
+.venv/bin/python -m unittest discover -s tests -v
+node --check console/static/app.js
+node tests/test_chat_history.cjs
+.venv/bin/python scripts/p2_rag_live_smoke.py
+```
+
+**Abnahme nur dann:** Transport und Fixture-Qualität beide PASS, außerdem weiterhin keine Namensraum-/Memory-Leaks und keine unzulässige Modell- oder Containeränderung.
+
 ## Release-Gates
 
 - [ ] Alle Tests auf Pi und GitHub-CI nachgewiesen erfolgreich
