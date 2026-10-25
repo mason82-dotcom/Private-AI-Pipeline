@@ -1,6 +1,6 @@
 # P2.2 – Optionale lokale semantische Dokumentensuche
 
-**Status:** Entwicklungsbranch, automatisierte Simulation; echter Ollama-/Raspberry-Pi-/Docker-Test und Gesamtabnahme offen. Kein Chat-RAG in dieser Phase.
+**Status:** Entwicklungsbranch; Pi-ARM64-Tests mit echtem lokalen Ollama-Embedding-Modell bestanden, aber Container-/Console-End-to-End-Abnahme und GitHub-CI weiterhin offen. Kein Chat-RAG in dieser Phase.
 
 ## Architektur
 
@@ -17,7 +17,7 @@ SEMANTIC_SEARCH_ENABLED=false
 SEMANTIC_MODEL=nomic-embed-text:latest
 ```
 
-Nur `nomic-embed-text:latest` und `bge-m3:latest` sind freigegeben. Der Modellhost ist der bereits explizit konfigurierte lokale `OLLAMA_URL`. Das Modell `nomic-embed-text` ist auf dem Raspberry Pi bereits installiert, **aber P2.2 wurde dort noch nicht gestartet**.
+Nur `nomic-embed-text:latest` und `bge-m3:latest` sind freigegeben. Der Modellhost ist der bereits explizit konfigurierte lokale `OLLAMA_URL`. Das Modell `nomic-embed-text` ist auf dem Raspberry Pi bereits installiert. Ein echter Hardware-Test gegen `127.0.0.1:11434` mit temporärer SQLite-Datenbank wurde am 25.10.2026 erfolgreich durchgeführt; der produktive Gateway-/Console-Pfad wurde dabei nicht verwendet.
 
 Die Konfiguration wird über `compose.yaml` in den Gateway-Container übernommen. Import (`KNOWLEDGE_IMPORT_ENABLED`) und semantische Suche haben **unabhängige** Flags. Ein Dateiupload startet keine Modellindizierung.
 
@@ -52,11 +52,23 @@ Im UI: **Wissen & Gedächtnis → Dokumente**, Suchmodus auf **Semantisch (lokal
 
 ## Offen / Release-Gates
 
-- [ ] CI-Gesamtlauf für den Feature-Branch bestätigt
-- [ ] Echte ARM64-Build-/Embedding-Tests mit `nomic-embed-text`, inkl. Modell-Ladezeit, RAM/Swap und Suchlatenz
+- [x] Raspberry-Pi-Python-Regressionssuite: 65 Tests, zunächst 64 bestanden + 1 wegen PyYAML übersprungen; anschließend alle 8 Tests in `test_v02.py` mit PyYAML bestanden, einschließlich des zuvor übersprungenen Tests. Zusätzlich 7 Chat-Historien-Tests bestanden.
+- [ ] GitHub-CI-Gesamtlauf für den Feature-Branch bestätigt
+- [x] Echte ARM64-Embedding-Inferenz mit `nomic-embed-text`: zwei Chunks in temporärer SQLite-DB, Indexierung 2/2, Suchranking Bagger-Hydraulik (0,9056) vor Apfelkuchen (0,6147)
+- [ ] Echte ARM64-Docker-Build- und End-to-End-Tests; Modell-Ladezeit, RAM/Swap-Verlauf und Suchlatenz noch nicht separat gemessen
 - [ ] Validierung auf mehrseitigen echten Text-PDFs und geänderten Quellen
 - [ ] Begrenzung/Monitoring bei mehreren parallelen Suchanfragen, Zugriffsschutz und Egress-Audit
 - [ ] Quellenbelegte RAG-Antworten im Chat (P2.3), noch nicht integriert
 - [ ] Review und Merge der vorgelagerten P2.1-PDF-Änderungen
 
 Dieser Stand ist **nicht** produktiv freigegeben. Container und bestehende Dienste auf dem Pi bleiben bis zur gesonderten Abnahme unverändert.
+
+## Bestätigte Pi-Ergebnisse vom 25.10.2026
+
+- RAM vor dem Test: 7,9 GiB gesamt, 3,3 GiB verfügbar; Swap 15 GiB gesamt, 3,8 GiB verwendet. Nachher-Werte nicht gemeldet.
+- Ollama `ps`: keine geladenen Modelle vor dem Test.
+- Installiertes Embedding-Modell: `nomic-embed-text:latest`, 274 MB laut `ollama list`.
+- Import in isolierter SQLite-DB: `{'indexed': 2, 'examined': 2, 'model':'nomic-embed-text:latest','namespace':'hardwaretest','limit':8}`.
+- Abfrage: „Wie funktioniert die Hydraulik eines Baggers?“ – Rang 1: Bagger/Hydraulikzylinder, Score 0,9056; Rang 2: Apfelkuchen, Score 0,6147.
+- Ergebnis am Pi: `P2.2 REAL EMBEDDINGS: PASS`.
+- Aussagegrenze: Der erfolgreiche Test bestätigt echten lokalen Ollama-Modellaufruf, Vektor-SQLite und Ranking; nicht die Docker-/UI-Berechtigungskette und keinen RAG-Chat.
