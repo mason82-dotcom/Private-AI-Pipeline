@@ -10,7 +10,7 @@ const ctx={
   fetch(){return new Promise(()=>{});},
   clearTimeout,setTimeout,
 };
-vm.runInNewContext(source+'\nglobalThis.__buildChatMessages=buildChatMessages;',ctx);
+vm.runInNewContext(source+'\nglobalThis.__buildChatMessages=buildChatMessages;globalThis.__chunkText=chunkText;globalThis.__extractEvents=extractEvents;',ctx);
 const build=ctx.__buildChatMessages;
 const user=content=>({role:'user',content});
 const assistant=(content,failed=false)=>failed?({role:'assistant',content,failed}):({role:'assistant',content});
@@ -27,4 +27,12 @@ assert.equal(payload.length,31);
 assert.equal(payload[0].content,'Frage 25');
 assert.equal(payload.at(-1).content,'Neu');
 assert.ok(payload.every(m=>m.content.trim().length>0));
-console.log('Chat context regression tests OK (7 cases)');
+const ragEvent='event: rag_sources\\ndata: '+JSON.stringify({sources:[{id:'Q1',source:'upload:abc#0',excerpt:'Test'}]});
+const parsed=ctx.__chunkText(ragEvent);
+assert.equal(parsed.sources[0].id,'Q1');
+assert.equal(ctx.__chunkText('data: [DONE]').done,true);
+assert.equal(ctx.__chunkText('data: {"choices":[{"delta":{"content":"ok"}}]}').text,'ok');
+const ragPair=ctx.__extractEvents(ragEvent+'\\n\\ndata: [DONE]\\n\\n',false);
+assert.equal(ragPair.events.length,2);
+assert.equal(ragPair.buffer,'');
+console.log('Chat context and RAG SSE regression tests OK (11 cases)');
