@@ -1,40 +1,24 @@
+# Local credentials (keep the public example)
 .env
+.env.*
+!.env.example
+
+# Python/JS temporary files
 __pycache__/
 .pytest_cache/
-*.sqlite3
-*.sqlite3-*
-backups/
-*.zip
 __pypackages__/
+*.pyc
+
+# Persistent runtime state
+*.sqlite
+*.sqlite*
+*.db
+*.db-*
+backups/
+state/
+documents/
+*.log
+
+# Local release archives
+*.zip
 *.tar.gz
-state/
-
-# Local runtime data
-.env
-.env.*
-!.env.example
-__pycache__/
-*.pyc
-*.db
-*.db-*
-*.sqlite
-*.sqlite*
-backups/
-state/
-documents/
-*.log
-
-# Local runtime data
-.env
-.env.*
-!.env.example
-__pycache__/
-*.pyc
-*.db
-*.db-*
-*.sqlite
-*.sqlite*
-backups/
-state/
-documents/
-*.log
