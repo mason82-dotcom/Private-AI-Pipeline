@@ -25,6 +25,7 @@ from http import HTTPStatus
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from rag import build_rag_messages
 
 STATIC_DIR = Path(__file__).parent / "static"
 MAX_BODY = 64 * 1024
@@ -212,6 +213,10 @@ class Handler(BaseHTTPRequestHandler):
         if not session:
             self.json_response(401, {'error': 'Anmeldung erforderlich'})
             return
+        if path == '/api/rag-config':
+            self.json_response(200,{'enabled':self.server.rag_enabled and bool(self.server.knowledge_token),
+                                    'modes':['fts','semantic'] if self.server.rag_enabled else []})
+            return
         if path == '/api/status':
             # Checked independently: a healthy gateway does not imply a working Ollama.
             result={'console':'ok','gateway':'unreachable','inference':'not_checked',
@@ -380,6 +385,12 @@ class Handler(BaseHTTPRequestHandler):
             payload = self.read_json()
             model = payload.get('model')
             msgs = payload.get('messages')
+            if set(payload)-{'model','messages','rag','rag_mode'}:
+                raise ValueError('Unbekannte Chat-Option')
+            rag_flag = payload.get('rag',False)
+            rag_mode = payload.get('rag_mode','fts')
+            if not isinstance(rag_flag,bool) or rag_mode not in ('fts','semantic'):
+                raise ValueError('RAG-Einstellung ungültig')
             if not isinstance(model, str) or not MODEL_RE.fullmatch(model):
                 raise ValueError('Modellname ungültig')
             if not isinstance(msgs, list) or not 1 <= len(msgs) <= 32:
@@ -392,10 +403,40 @@ class Handler(BaseHTTPRequestHandler):
                 if not isinstance(content, str) or not 0 < len(content) <= 4000:
                     raise ValueError('Nachrichtenlänge ungültig')
                 clean.append({'role': item['role'], 'content': content})
-            raw = json.dumps({'model': model, 'messages': clean, 'stream': True}, ensure_ascii=False).encode()
+            if rag_flag and (not self.server.rag_enabled or not self.server.knowledge_token):
+                self.json_response(403,{'error':'Dokumenten-Chat ist deaktiviert'})
+                return
         except ValueError as exc:
             self.json_response(400, {'error': str(exc)})
             return
+
+        sources=[]
+        if rag_flag:
+            try:
+                question=clean[-1]['content'] if clean[-1]['role']=='user' else ''
+                if not question.strip(): raise ValueError('Letzte Nachricht muss eine Benutzerfrage sein')
+                # Retrieval is sequential and bounded, before starting LLM inference.
+                query=urllib.parse.urlencode({'kind':'semantic' if rag_mode=='semantic' else 'search',
+                                               'q':question[:200]})
+                with self.knowledge_upstream('GET','/private/knowledge?'+query) as response:
+                    result=response.read(128*1024+1)
+                if len(result)>128*1024: raise ValueError('Suchergebnis zu groß')
+                clean,sources=build_rag_messages(clean,json.loads(result))
+                if not sources:
+                    self.json_response(409,{'error':'Keine passenden Dokument-Fundstellen; RAG-Antwort nicht gestartet'})
+                    return
+            except urllib.error.HTTPError as exc:
+                code=409 if exc.code==409 else 403 if exc.code==403 else 503
+                self.json_response(code,{'error':'Dokumentensuche nicht bereit; keine ungeprüfte Chat-Antwort'})
+                return
+            except (ValueError,TypeError,UnicodeError):
+                self.json_response(400,{'error':'Ungültige Dokument-Fundstellen'})
+                return
+            except (urllib.error.URLError,TimeoutError,OSError):
+                self.json_response(503,{'error':'Lokale Dokumentensuche nicht erreichbar'})
+                return
+
+        raw=json.dumps({'model': model, 'messages': clean, 'stream': True}, ensure_ascii=False).encode()
         try:
             with self.upstream('/v1/chat/completions', raw,timeout=180) as upstream:
                 if upstream.headers.get_content_type() != 'text/event-stream':
@@ -407,6 +448,11 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header('Transfer-Encoding', 'chunked')
                 self.end_headers()
                 self._headers_sent_flag = True
+                if sources:
+                    # Custom SSE event; never includes credentials or user history.
+                    notice=('event: rag_sources\ndata: '+json.dumps({'sources':sources},ensure_ascii=False)+'\n\n').encode('utf-8')
+                    self.wfile.write(f'{len(notice):X}\r\n'.encode()+notice+b'\r\n')
+                    self.wfile.flush()
                 total = 0
                 try:
                     while True:
@@ -438,7 +484,7 @@ class Handler(BaseHTTPRequestHandler):
 class Server(ThreadingHTTPServer):
     daemon_threads = True
 
-    def __init__(self, address, gateway_url, gateway_token, password_hash, secure_cookie=False, knowledge_token="", import_enabled=False):
+    def __init__(self, address, gateway_url, gateway_token, password_hash, secure_cookie=False, knowledge_token="", import_enabled=False, rag_enabled=False):
         if len(gateway_token) < 32:
             raise ValueError('PIPELINE_TOKEN fehlt')
         # Validate stored hash structure even if no valid password supplied.
@@ -450,6 +496,7 @@ class Server(ThreadingHTTPServer):
         self.gateway_token = gateway_token
         self.knowledge_token = knowledge_token if len(knowledge_token)>=32 else ''
         self.import_enabled = bool(import_enabled)
+        self.rag_enabled = bool(rag_enabled)
         self.password_hash = password_hash
         self.secure_cookie = secure_cookie
         self.sessions = {}
@@ -463,7 +510,8 @@ def main():
                     os.getenv('PIPELINE_TOKEN', ''), os.getenv('CONSOLE_PASSWORD_HASH', ''),
                     os.getenv('CONSOLE_SECURE_COOKIE', 'false').lower() == 'true',
                     os.getenv('KNOWLEDGE_TOKEN', ''),
-                    os.getenv('KNOWLEDGE_IMPORT_ENABLED', 'false').lower() == 'true')
+                    os.getenv('KNOWLEDGE_IMPORT_ENABLED', 'false').lower() == 'true',
+                    os.getenv('RAG_ENABLED', 'false').lower() == 'true')
     server.serve_forever()
 
 
