@@ -184,7 +184,7 @@ document.addEventListener('click',e=>{
   if(e.target.id==='retryKnowledge')loadKnowledge();
   if(e.target.id==='searchKnowledge')loadKnowledge($('#knowledgeQuery')?.value?.trim()||'');
 });
-document.addEventListener('change',e=>{if(e.target.id==='model')state.model=e.target.value;if(e.target.id==='ragToggle'){state.rag.active=state.rag.enabled&&e.target.checked;render()}if(e.target.id==='ragMode')state.rag.mode=e.target.value==='semantic'?'semantic':'fts';if(e.target.id==='importFile')importText(e.target.files?.[0]);if(e.target.id==='searchMode'){state.knowledge.searchMode=e.target.value==='semantic'?'semantic':'fts';render();}});
+document.addEventListener('change',e=>{if(e.target.id==='model')state.model=e.target.value;if(e.target.id==='ragToggle'){state.rag.active=state.rag.enabled&&e.target.checked;const mode=$('#ragMode');if(mode)mode.disabled=!state.rag.active}if(e.target.id==='ragMode')state.rag.mode=e.target.value==='semantic'?'semantic':'fts';if(e.target.id==='importFile')importText(e.target.files?.[0]);if(e.target.id==='searchMode'){state.knowledge.searchMode=e.target.value==='semantic'?'semantic':'fts';render();}});
 document.addEventListener('submit',e=>{if(e.target.id==='chatForm')chatSend(e)});
 document.addEventListener('keydown',e=>{
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();openPalette();}
