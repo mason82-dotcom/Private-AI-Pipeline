@@ -42,3 +42,14 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .import-button{position:relative;background:#3267d6;color:white;border-radius:8px;padding:12px 14px;font-weight:700;cursor:pointer;min-height:44px;display:flex;align-items:center}
 .import-button input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer}
 @media(max-width:430px){.document-row{align-items:flex-start}.document-row .flag{display:none}}
+
+/* P2.3 opt-in RAG controls and explicitly unverified source snippets */
+.chat-actions label{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--ink)}
+.chat-actions label input[type=checkbox]{width:16px;height:16px;accent-color:var(--primary)}
+.chat-actions label select{border:1px solid var(--line);border-radius:6px;min-height:32px;max-width:120px}
+.rag-sources{border-top:1px solid var(--line);margin-top:12px;padding-top:8px;overflow-wrap:anywhere}
+.rag-sources summary{cursor:pointer;font-size:12px;font-weight:700;color:var(--primary);padding:6px 0}
+.rag-sources p{font-size:12px;line-height:1.45;white-space:pre-wrap;border-top:1px solid var(--line);padding:8px 0;margin:0;color:var(--ink)}
+.rag-sources strong,.rag-sources small{display:block}
+.rag-sources small{font-size:10px;color:#697d95;margin:3px 0}
+@media(max-width:650px){.chat-actions{flex-wrap:wrap}.chat-actions label{max-width:100%}}
