@@ -142,11 +142,24 @@ docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-
 
 `docker build` erzeugt nur zusätzlich markierte Images; es ersetzt keine laufenden Container. Neue Base-Layer und die gepinnte `pypdf`-Abhängigkeit können heruntergeladen werden, falls nicht gecacht. Vor dem Bau freien Platz/RAM prüfen; bei Knappheit den Bau überspringen. Die einmaligen `docker run`-Checks verwenden kein Netzwerk, keine Volumes und starten keine Server. Images nach dem Test nicht ohne weitere Prüfung produktiv einsetzen; Basisimage-Pinning, Security-Review und isolierte Browserabnahme sind offen.
 
+## ARM64-Docker-Bauprüfung – bestanden (25.10.2026)
+
+Die nachfolgende Abnahme wurde vom Betreiber **im separaten Entwicklungscheckout** durchgeführt. Es wurden keine produktiven Compose-Container oder Volumes neu erstellt, entfernt oder umkonfiguriert.
+
+- Vorbedingungen: Raspberry Pi 5, RAM 7,9 GiB gesamt / 2,7 GiB verfügbar, Swap 15 GiB gesamt / 3,7 GiB benutzt; Root-Dateisystem 233 GiB gesamt / 135 GiB frei; Docker-Imagebestand 48 Images und 35 Container.
+- `docker build --pull=false -f gateway/Dockerfile -t private-ai-p23-gateway:qa ./gateway`: **PASS** in 6,2 Sekunden; inklusive `pypdf==5.9.0`, Gateway, Knowledge und Embedding-Modul.
+- `docker build --pull=false -f console/Dockerfile -t private-ai-p23-console:qa ./console`: **PASS** in 2,0 Sekunden.
+- `docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges` mit Python-Importtests: **`GATEWAY_IMAGE_IMPORT_OK`**, **`CONSOLE_IMAGE_IMPORT_OK`**.
+- Dies bestätigt **Image-Build und Modul-Import unter isolierten Docker-Runtime-Bedingungen**. Es ist noch keine Docker-HTTP-, SSE- oder Browser-End-to-End-Abnahme; Netzwerkkonnektivität wurde bei den Modulprüfungen ausdrücklich deaktiviert.
+- Testimages wurden als `:qa` getaggt, nicht als produktive Release-Images. Kein Merge, kein Deployment durch diese Abnahme.
+
+**Nächster Release-Gate:** gesonderter isolierter Test der HTTP-Kommunikation von zwei QA-Containern, Auth/CSRF und SSE im tatsächlichen Light-Console-Browser, vor produktivem Deployment. Nur temporäre, explizit begrenzte lokale Ports, Testschlüssel und eine Wegwerf-Datenbank; keine Mounts auf das produktive `memory_data`-Volume.
+
 ## Release-Gates
 
 - [x] Vollständige Pi-Python- und JavaScript-Regression nach der Qualitätskorrektur nachgewiesen (71 + 11 Fälle)
 - [ ] GitHub-CI-Gesamtlauf nachgewiesen erfolgreich
-- [ ] ARM64-Build der veränderten Console-/Gateway-Images erfolgreich
+- [x] ARM64-Build beider P2.3-Images und isolierte Python-Modulimporte bestanden; HTTP-/Browser-Containerintegration weiterhin offen
 - [x] Isolierter lokaler FTS5-RAG-E2E-Smoketest mit echtem Ollama, SSE, PDF-Seite 2 und passendem Quellenzitat (ein Testfall); Live-Browser-Abnahme weiterhin offen
 - [ ] Injektions- und Zitierqualitäts-Stichproben auf verschiedenen Dokumenten
 - [ ] Modell-RAM/Swap-/Timeout-Messung beim sequentiellen Embedding- und Chat-Betrieb
