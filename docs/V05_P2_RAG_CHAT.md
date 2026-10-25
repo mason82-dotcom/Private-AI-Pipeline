@@ -50,6 +50,27 @@ Die Python-HTTP-Tests verwenden einen simulierten lokalen Ollama-Server mit echt
 
 **Keine Änderungen an produktiver Pi-Installation** für diese automatisierten Tests. Vor einer späteren Testinstallation: SQLite-Backup validieren, vorbereitende P2.1/2.2 PRs abnehmen und die laufenden Pi-Dienste/RAM/Swap prüfen. Kein `docker compose down -v`; keine Container-Neuerstellung ohne gesonderten Betriebsentscheid.
 
+## P2.3 echter Pi-FTS5-RAG-Smoke (neu; Ausführung steht aus)
+
+Ein vollständig isolierter Hardwaretest ohne Deployment steht im Feature-Branch unter `scripts/p2_rag_live_smoke.py`.
+
+```bash
+cd ~/Projekte/Private-AI-Pipeline-P2-Dev
+git pull --ff-only origin feature/p2-rag-chat-citations
+.venv/bin/python -m py_compile scripts/p2_rag_live_smoke.py
+.venv/bin/python scripts/p2_rag_live_smoke.py
+```
+
+**Voraussetzung:** Ein bereits lokal installiertes `qwen3:0.6b` und ein laufendes Ollama unter `http://127.0.0.1:11434`. Das Skript verwendet die bestehende virtuelle Umgebung und installiert oder lädt nichts herunter.
+
+**Abgrenzung:** Für den Smoke-Test werden Console/Gateway aus dem Entwicklungscheckout an **zufälligen lokalen Loopback-Ports** gestartet; SQLite wird ausschließlich im temporären Verzeichnis erzeugt. Es werden frische Test-Tokens und ein Testpasswort erstellt; `.env`, produktive Volumes und laufende Docker-Dienste werden nicht verändert. Die Test-PDF mit zwei Seiten wird im Arbeitsspeicher erzeugt und durch die echte P2.1-Extraktion indiziert. Echte Ollama-Inferenz erfolgt **einmal** mit `qwen3:0.6b`.
+
+**Vorabbruch:** Der Test startet keine Inferenz, wenn weniger als etwa 1,43 GiB Arbeitsspeicher verfügbar sind, das Modell nicht installiert ist oder ein anderes Modell bei Ollama geladen ist. Keine fremden Modelle automatisch entladen.
+
+**Anforderungen für PASS:** CSRF-Sperre, HTTP 409 bei leerer RAG-Fundstelle, echte PDF-Quellenkennung und **Seite 2**, getrennte Namespaces/Memory-Ausschluss im Quellennachweis, gültiger SSE-Abschluss `[DONE]` und nichtleere Modellantwort. Ausgegeben werden Antwortzeit, kurze Modellantwort sowie `Quellenzitat im Modelltext: True/False`. **Dieses Zitat ist ein separates Qualitätsmerkmal und keine zwingende Bedingung für den Transport-PASS.**
+
+**Wichtige Grenze:** Auch ein erfolgreicher Test ist kein Docker-Image-Build und keine Live-Browser-/Produktivfreigabe. Dieser E2E-Smoke belegt die realen HTTP-Server- und Modellpfade ohne neue Ports von außen.
+
 ## Release-Gates
 
 - [ ] Alle Tests auf Pi und GitHub-CI nachgewiesen erfolgreich
