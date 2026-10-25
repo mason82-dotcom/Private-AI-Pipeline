@@ -16,7 +16,8 @@ import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from memdb import connect, search, validate_namespace
-from knowledge import add_document, list_documents, list_memories, find_documents
+from knowledge import add_document, add_pdf_pages, list_documents, list_memories, find_documents
+from pdf_ingest import parse_base64_pdf
 
 MAX_BODY = 1024 * 1024
 ALLOWED_PATHS = {'/v1/models': 'GET', '/v1/chat/completions': 'POST', '/v1/embeddings': 'POST'}
@@ -155,11 +156,20 @@ class Handler(BaseHTTPRequestHandler):
                         self.respond(403, {'error':'Import serverseitig deaktiviert'})
                         return
                     size=int(self.headers.get('Content-Length','-1'))
-                    if size<1 or size>65536: raise ValueError('Request zu groß')
-                    data=json.loads(self.rfile.read(size))
-                    if not isinstance(data,dict) or set(data) != {'filename','content'}:
+                    if size<1 or size>1_500_000: raise ValueError('Request zu groß')
+                    raw=self.rfile.read(size)
+                    if len(raw)!=size: raise ValueError('Unvollständiger Import')
+                    data=json.loads(raw)
+                    if not isinstance(data,dict): raise ValueError('Ungültiger Import')
+                    if set(data)=={'filename','content'}:
+                        result=add_document(db,namespace,data['filename'],data['content'])
+                    elif set(data)=={'filename','pdf_base64'}:
+                        if not isinstance(data['filename'],str) or not data['filename'].lower().endswith('.pdf'):
+                            raise ValueError('PDF-Dateiname ungültig')
+                        binary,pages=parse_base64_pdf(data['pdf_base64'])
+                        result=add_pdf_pages(db,namespace,data['filename'],binary,pages)
+                    else:
                         raise ValueError('Ungültiger Import')
-                    result=add_document(db,namespace,data['filename'],data['content'])
                     self.respond(200,dict(result,scope='single_operator'))
         except (ValueError,TypeError,UnicodeError,json.JSONDecodeError):
             self.respond(400, {'error':'Ungültige Wissensanfrage oder Datei'})
