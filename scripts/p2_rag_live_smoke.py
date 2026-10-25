@@ -151,6 +151,7 @@ def assess_fixture_answer(answer, sources):
 def main():
     start = time.monotonic()
     preflight()
+    quality_ok=False
     with tempfile.TemporaryDirectory(prefix='pai-p23-real-smoke-') as tmp:
         dbpath = str(Path(tmp) / 'knowledge.sqlite3')
         with connect(dbpath) as db:
@@ -221,9 +222,9 @@ def main():
             print('Quellenzitat im Modelltext:', quality['citation_present'])
             print('P2.3 REAL LOCAL FTS5 RAG TRANSPORT: PASS')
             print('P2.3 FIXTURE ANSWER QUALITY:', 'PASS' if quality['quality_pass'] else 'FAIL')
-            if not quality['quality_pass']:
+            quality_ok=quality['quality_pass']
+            if not quality_ok:
                 print('Qualitaetsdetails:', json.dumps(quality, ensure_ascii=False))
-                raise RuntimeError('Quellenbelegte inhaltliche Antwort fehlt; Transport war erfolgreich')
         finally:
             for server in (console, gateway):
                 if server:
@@ -235,6 +236,8 @@ def main():
     print(f'RAM nach Test: {after["MemAvailable"]/1048576:.2f} GiB verfügbar; '
           f'Swap benutzt: {(after["SwapTotal"]-after["SwapFree"])/1048576:.2f} GiB')
     print(f'Gesamtdauer: {time.monotonic()-start:.1f} s')
+    if not quality_ok:
+        raise RuntimeError('Quellenbelegte inhaltliche Antwort fehlt; Transport war erfolgreich')
 
 
 if __name__ == '__main__':
