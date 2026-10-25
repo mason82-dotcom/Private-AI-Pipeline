@@ -21,6 +21,7 @@ jobs:
         run: |
           node --check console/static/app.js
           node --check console/static/login.js
+          node tests/test_chat_history.cjs
       - name: Shell syntax
         run: |
           for script in scripts/*.sh; do bash -n "$script"; done
