@@ -1,7 +1,7 @@
 'use strict';
 // This frontend never knows PIPELINE_TOKEN. All requests are same-origin and authenticated.
 const $ = sel => document.querySelector(sel);
-const state = { view:'overview',tab:{knowledge:'documents',system:'services'},csrf:null,status:null,models:[],modelsError:null,modelsChecked:null,model:null,history:[],busy:false,abort:null,checked:null,knowledge:{documents:[],memories:[],results:[],error:null,loading:false,importEnabled:false,scope:null,query:''} };
+const state = { view:'overview',tab:{knowledge:'documents',system:'services'},csrf:null,status:null,models:[],modelsError:null,modelsChecked:null,model:null,history:[],busy:false,abort:null,checked:null,knowledge:{documents:[],memories:[],results:[],error:null,loading:false,importEnabled:false,semanticEnabled:false,searchMode:'fts',scope:null,query:''} };
 const labels={overview:'Übersicht',chat:'Chat',knowledge:'Wissen & Gedächtnis',agents:'Agenten',system:'System'};
 const navigation=[['overview','Übersicht'],['chat','Chat'],['knowledge','Wissen & Gedächtnis'],['agents','Agenten'],['system','System'],['system:models','Modelle'],['system:backups','Sicherungen']];
 const html=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -39,7 +39,7 @@ function render(){
     if(k.loading)content='<section class="card empty" role="status">Wissensdaten werden lokal geladen …</section>';
     else if(k.error)content=`<section class="card empty"><strong>Wissensdienst nicht verfügbar</strong><p>${html(k.error)}</p><button class="subtle" id="retryKnowledge">Erneut versuchen</button></section>`;
     else if(memory)content=`<section class="card"><div class="section-head"><h2>Gespeicherte Erinnerungen · ${html(k.scope||'Einzelinstanz')}</h2>${flag('Nur lesen')}</div><p class="hint">Keine automatische Mitschrift; Bearbeiten und Löschen nicht über diese Oberfläche freigeschaltet.</p><label class="field-label" for="knowledgeQuery">Erinnerungen durchsuchen</label><input id="knowledgeQuery" maxlength="200" placeholder="Suchbegriff" value="${html(k.query)}"/><button class="subtle" id="searchKnowledge">Suchen</button>${k.memories.length?k.memories.map(m=>`<article class="memory-row"><strong>${html(m.source)}</strong><p>${html(m.body)}</p></article>`).join(''):'<p class="empty">Keine Erinnerungen gefunden.</p>'}</section>`;
-    else content=`<section class="card"><div class="section-head"><h2>Lokale Wissensdokumente · ${html(k.scope||'Einzelinstanz')}</h2>${flag(k.importEnabled?'Import freigeschaltet':'Import gesperrt')}</div><p class="hint">Indizierte UTF-8-Texte und textbasierte PDFs (max. 1 MiB, 16 Seiten). Gescannte PDFs benötigen eine spätere OCR-Erweiterung.</p><div class="knowledge-actions"><label for="knowledgeQuery" class="sr">Dokumentinhalt suchen</label><input id="knowledgeQuery" maxlength="200" placeholder="Quellen durchsuchen …" value="${html(k.query)}"><button id="searchKnowledge" class="subtle">Suchen</button>${k.importEnabled?'<label class="import-button">Datei importieren <input type="file" id="importFile" accept=".md,.txt,.rst,.pdf,text/plain,application/pdf" /></label>':''}</div><div class="knowledge-table" role="list">${k.documents.length?k.documents.map(d=>`<div class="document-row" role="listitem"><span class="file-icon">▤</span><span><strong>${html(d.filename)}</strong><small>ID ${html(d.id)} · ${html(d.chunks)} Textabschnitte · ${html(d.format||'text')} · ${html(d.imported_at)}</small></span>${flag('Indiziert',true)}</div>`).join(''):'<p class="empty">Noch keine Dokumente importiert.</p>'}</div>${k.results.length?`<h2>Fundstellen</h2>${k.results.map(r=>`<div class="memory-row"><strong>${html(r.filename||r.source)}${Number.isInteger(r.page)?' · Seite '+r.page:''}</strong><small>${html(r.source)}</small><p>${html(r.excerpt)}</p></div>`).join('')}`:''}</section>`;
+    else content=`<section class="card"><div class="section-head"><h2>Lokale Wissensdokumente · ${html(k.scope||'Einzelinstanz')}</h2>${flag(k.importEnabled?'Import freigeschaltet':'Import gesperrt')}</div><p class="hint">Indizierte UTF-8-Texte und textbasierte PDFs (max. 1 MiB, 16 Seiten). Gescannte PDFs benötigen eine spätere OCR-Erweiterung.</p><div class="knowledge-actions"><label for="knowledgeQuery" class="sr">Dokumentinhalt suchen</label><input id="knowledgeQuery" maxlength="200" placeholder="Quellen durchsuchen …" value="${html(k.query)}"><button id="searchKnowledge" class="subtle">Suchen</button>${k.semanticEnabled?`<label class="sr" for="searchMode">Suchmodus</label><select id="searchMode" aria-label="Suchmodus"><option value="fts" ${k.searchMode==="fts"?"selected":""}>Volltext</option><option value="semantic" ${k.searchMode==="semantic"?"selected":""}>Semantisch (lokal)</option></select>`:""}${k.importEnabled?'<label class="import-button">Datei importieren <input type="file" id="importFile" accept=".md,.txt,.rst,.pdf,text/plain,application/pdf" /></label>':''}</div><div class="knowledge-table" role="list">${k.documents.length?k.documents.map(d=>`<div class="document-row" role="listitem"><span class="file-icon">▤</span><span><strong>${html(d.filename)}</strong><small>ID ${html(d.id)} · ${html(d.chunks)} Textabschnitte · ${html(d.format||'text')} · ${html(d.imported_at)}</small></span>${flag('Indiziert',true)}</div>`).join(''):'<p class="empty">Noch keine Dokumente importiert.</p>'}</div>${k.results.length?`<h2>Fundstellen</h2>${k.results.map(r=>`<div class="memory-row"><strong>${html(r.filename||r.source)}${Number.isInteger(r.page)?' · Seite '+r.page:''}</strong><small>${html(r.source)}${Number.isFinite(r.score)?" · Ähnlichkeit "+Math.round(r.score*100)+"%":""}</small><p>${html(r.excerpt)}</p></div>`).join('')}`:''}</section>`;
     box.innerHTML=title('Wissen & Gedächtnis','Lokale Quellen und bewusst gespeicherte Erinnerungen. Zugriff ausschließlich für die konfigurierte Einzelinstanz.')+t+`<div class="readonly-note">Keine projektübergreifende Multiuser-Freigabe. Schreibende Memory-Funktionen bleiben deaktiviert.</div>`+content;
   } else if(state.view==='agents'){
     box.innerHTML=title('Agenten','MCP-Clients und Werkzeuge benötigen serverseitig erzwungene, projektbezogene Richtlinien.')+
@@ -70,11 +70,12 @@ async function loadKnowledge(query=''){
   try {
     const kind=state.tab.knowledge==='memory'?'memory':'documents';
     const result=await fetchJSON('/api/knowledge?'+new URLSearchParams({kind,q:kind==='memory'?query:''}));
-    k.scope=result.namespace;k.importEnabled=Boolean(result.import_enabled);
+    k.scope=result.namespace;k.importEnabled=Boolean(result.import_enabled);k.semanticEnabled=Boolean(result.semantic_enabled);
+    if(!k.semanticEnabled)k.searchMode='fts';
     k.documents=result.documents||k.documents;
     k.memories=result.memories||k.memories;
     k.results=[];
-    if(kind==='documents'&&query){const found=await fetchJSON('/api/knowledge?'+new URLSearchParams({kind:'search',q:query}));k.results=found.results||[];}
+    if(kind==='documents'&&query){const found=await fetchJSON('/api/knowledge?'+new URLSearchParams({kind:k.semanticEnabled&&k.searchMode==='semantic'?'semantic':'search',q:query}));k.results=found.results||[];}
   } catch(e){k.error=e.message;} finally{k.loading=false;render();}
 }
 async function importText(file){
@@ -172,7 +173,7 @@ document.addEventListener('click',e=>{
   if(e.target.id==='retryKnowledge')loadKnowledge();
   if(e.target.id==='searchKnowledge')loadKnowledge($('#knowledgeQuery')?.value?.trim()||'');
 });
-document.addEventListener('change',e=>{if(e.target.id==='model')state.model=e.target.value;if(e.target.id==='importFile')importText(e.target.files?.[0]);});
+document.addEventListener('change',e=>{if(e.target.id==='model')state.model=e.target.value;if(e.target.id==='importFile')importText(e.target.files?.[0]);if(e.target.id==='searchMode'){state.knowledge.searchMode=e.target.value==='semantic'?'semantic':'fts';render();}});
 document.addEventListener('submit',e=>{if(e.target.id==='chatForm')chatSend(e)});
 document.addEventListener('keydown',e=>{
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();openPalette();}
