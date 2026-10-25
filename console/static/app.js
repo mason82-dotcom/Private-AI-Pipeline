@@ -98,10 +98,24 @@ async function refresh(){const [a,b]=await Promise.allSettled([fetchJSON('/api/s
   if(state.modelsError)toast('Modellliste offline – keine Cloud-Ausweichroute');
 }
 
+// Only complete, successful user/assistant turns belong in a new inference request.
+// Failed, aborted, and still-empty model placeholders remain visible in the UI,
+// but must never be replayed to the Gateway (which rejects empty messages).
+function buildChatMessages(history, prompt){
+  const complete=[];
+  for(let i=0;i+1<history.length;i+=2){
+    const user=history[i],assistant=history[i+1];
+    if(user?.role!=='user'||assistant?.role!=='assistant'||assistant.failed)continue;
+    if(typeof user.content!=='string'||!user.content.trim()||typeof assistant.content!=='string'||!assistant.content.trim())continue;
+    complete.push({role:'user',content:user.content},{role:'assistant',content:assistant.content});
+  }
+  return [...complete.slice(-30),{role:'user',content:prompt}];
+}
+
 function extractEvents(buffer,flush){const out=[];let index;while((index=buffer.indexOf('\n\n'))!==-1){out.push(buffer.slice(0,index));buffer=buffer.slice(index+2)}if(flush&&buffer.trim())out.push(buffer);return {events:out,buffer}}
 function chunkText(evt){for(const line of evt.split('\n')){if(!line.startsWith('data:'))continue;const v=line.slice(5).trim();if(v==='[DONE]')return {done:true};try{const msg=JSON.parse(v);const delta=msg.choices?.[0]?.delta?.content;if(typeof delta==='string')return {text:delta};}catch{throw Error('Ungültiges SSE-Paket')}}return {text:''}}
 async function chatSend(e){e.preventDefault();if(state.busy||!state.model)return;const prompt=$('#prompt').value.trim();if(!prompt)return;
-  const prior=[...state.history.slice(-31),{role:'user',content:prompt}];
+  const prior=buildChatMessages(state.history,prompt);
   state.history.push({role:'user',content:prompt},{role:'assistant',content:''});state.busy=true;const ctrl=new AbortController();state.abort=ctrl;render();
   try{
     const response=await fetch('/api/chat',{method:'POST',credentials:'same-origin',signal:ctrl.signal,headers:{'Content-Type':'application/json','X-CSRF-Token':state.csrf},body:JSON.stringify({model:state.model,messages:prior})});
@@ -115,7 +129,17 @@ async function chatSend(e){e.preventDefault();if(state.busy||!state.model)return
       const msgs=$('#messages');if(msgs){const last=msgs.querySelector('.msg:last-child div');if(last)last.textContent=state.history[state.history.length-1].content;msgs.scrollTop=msgs.scrollHeight;}
     }
     if(!finished)throw Error('Antwortstream unvollständig; Ausgabe möglicherweise gekürzt.');
-  }catch(err){if(err.name!=='AbortError'){state.history[state.history.length-1].content ||= 'Antwort fehlgeschlagen: '+err.message;toast(err.message);} }
+  }catch(err){
+      const assistant=state.history[state.history.length-1];
+      assistant.failed=true;
+      if(err.name==='AbortError'){
+        assistant.content ||= 'Antwort abgebrochen.';
+      }else{
+        // Never replay an error string or a truncated partial response as model output.
+        assistant.content += (assistant.content?'\n':'')+'Antwort fehlgeschlagen: '+err.message;
+        toast(err.message);
+      }
+    }
   finally {state.busy=false;state.abort=null;render()}
 }
 function closeMobile(){const rail=$('#rail');rail.classList.remove('open');$('#menu').setAttribute('aria-expanded','false');$('#scrim').hidden=true}
