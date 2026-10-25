@@ -14,6 +14,7 @@ services:
       PIPELINE_TOKEN: ${PIPELINE_TOKEN:?Run scripts/init.sh first}
       KNOWLEDGE_TOKEN: ${KNOWLEDGE_TOKEN:-}
       KNOWLEDGE_IMPORT_ENABLED: ${KNOWLEDGE_IMPORT_ENABLED:-false}
+      RAG_ENABLED: ${RAG_ENABLED:-false}
       CONSOLE_PASSWORD_HASH: ${CONSOLE_PASSWORD_HASH:?Run python3 console/set_password.py first}
       CONSOLE_SECURE_COOKIE: ${CONSOLE_SECURE_COOKIE:-false}
       GATEWAY_URL: http://gateway:8000
