@@ -96,11 +96,25 @@ node tests/test_chat_history.cjs
 
 **Abnahme nur dann:** Transport und Fixture-Qualität beide PASS, außerdem weiterhin keine Namensraum-/Memory-Leaks und keine unzulässige Modell- oder Containeränderung.
 
+## Wiederholungstest nach RAG-Prompt-Korrektur – PASS (25.10.2026)
+
+**Die zuvor dokumentierte inhaltliche Nicht-Antwort ist im Wiederholungstest behoben.** Dieser Abschnitt ergänzt den historischen Erstlauf, statt ihn zu überschreiben.
+
+- Sechs gezielte P2.3-Regressionsfälle: **6/6 PASS**, Laufzeit 3,240 s. Der zusätzliche Test `test_fixture_requires_evidence_and_matching_citation` prüft das spezifische Bagger-Hydraulik-Beispiel.
+- Reale lokale Ollama-Inferenz mit `qwen3:0.6b`, temporärer SQLite-Datenbank und zweitseitiger Test-PDF: `rag-hardwaretest.pdf`, Seite 2, Quellen-ID `Q1`.
+- Tatsächlich generierte Antwort: *„Die Hydraulikpumpe erzeugt Druckoel für die Baggerzylinder. [Q1]“*
+- **`P2.3 REAL LOCAL FTS5 RAG TRANSPORT: PASS`** und **`P2.3 FIXTURE ANSWER QUALITY: PASS`**.
+- SSE-Text 64 Zeichen; gemessene Antwortzeit 24,1 s; gesamte Skriptlaufzeit 25,3 s.
+- Vorher: RAM verfügbar 3,52 GiB, Swap belegt 3,74 GiB. Nachher: RAM verfügbar 2,78 GiB, Swap belegt 3,74 GiB. Keine Spitzenlastmessung.
+- Die positive Qualitätsbewertung gilt für **diese konkrete Testfrage**, nicht als allgemeiner Nachweis korrekter KI-Zitate, Halluzinationsfreiheit oder gegen Prompt-Injection.
+
+**Offen trotz PASS:** Python-Gesamtsuite nach der neuen Qualitätsprüfung erneut ausführen und GitHub-CI bestätigen; ARM64-Docker-Images bauen; isolierten Live-Browsertest durchführen; mehrere unterschiedliche Dokumente, gezielte adversarielle Beispiele und Wiedergabe nach Dokument-Updates prüfen. Produktive Pi-Container und das bestehende Memory-Volume bleiben unverändert. Ein Merge darf erst nach Review und den übrigen Release-Gates erfolgen.
+
 ## Release-Gates
 
 - [ ] Alle Tests auf Pi und GitHub-CI nachgewiesen erfolgreich
 - [ ] ARM64-Build der veränderten Console-/Gateway-Images erfolgreich
-- [ ] RAG mit echtem lokalem Ollama end-to-end inkl. SSE und sichtbaren Quellen
+- [x] Isolierter lokaler FTS5-RAG-E2E-Smoketest mit echtem Ollama, SSE, PDF-Seite 2 und passendem Quellenzitat (ein Testfall); Live-Browser-Abnahme weiterhin offen
 - [ ] Injektions- und Zitierqualitäts-Stichproben auf verschiedenen Dokumenten
 - [ ] Modell-RAM/Swap-/Timeout-Messung beim sequentiellen Embedding- und Chat-Betrieb
 - [ ] Herkunft/Status der Quellen und Auswirkung von Dokument-Updates geprüft
