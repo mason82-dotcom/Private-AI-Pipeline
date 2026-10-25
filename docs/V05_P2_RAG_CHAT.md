@@ -110,9 +110,42 @@ node tests/test_chat_history.cjs
 
 **Offen trotz PASS:** Python-Gesamtsuite nach der neuen Qualitätsprüfung erneut ausführen und GitHub-CI bestätigen; ARM64-Docker-Images bauen; isolierten Live-Browsertest durchführen; mehrere unterschiedliche Dokumente, gezielte adversarielle Beispiele und Wiedergabe nach Dokument-Updates prüfen. Produktive Pi-Container und das bestehende Memory-Volume bleiben unverändert. Ein Merge darf erst nach Review und den übrigen Release-Gates erfolgen.
 
+## Pi-Regressionsabnahme nach der Qualitätskorrektur (25.10.2026)
+
+- **71/71 Python-Tests PASS**, vollständiger `.venv/bin/python -m unittest discover -s tests -v`-Lauf in **47,240 Sekunden**, **keine Fehler und keine übersprungenen Tests**.
+- `node --check console/static/app.js` ohne Fehler; `node tests/test_chat_history.cjs`: **11/11 Chat-Historie-/RAG-SSE-Fälle PASS**.
+- Getesteter Checkout: `feature/p2-rag-chat-citations`, Stand `9e61c96`.
+- **Testabdeckung:** einschließlich PDF-Import mit Seitenfundstelle, FTS5, semantischer Suche mit Fake-Embedding, abgesichertem RAG-SSE-Endpunkt, sicherem Fehlerfall und konkreter Qualitätstest-Fixture.
+- **Abgrenzung:** Die gesamten Python-Tests nutzen größtenteils simulierte Server; der zuvor separat bestandene reale Ollama-Smoke bleibt ein einzelner Inhaltsfall. GitHub Actions liefert für den aktuellen Commit noch keine bestätigten Workflow-Runs/Statusprüfungen. ARM64-Docker-Build und Browserintegration weiterhin offen.
+
+### Nächste isolierte Docker-Bauprüfung
+
+Aus dem Entwicklungscheckout; **kein** `docker compose up`, `down`, `--force-recreate` oder `docker system prune`:
+
+```bash
+cd ~/Projekte/Private-AI-Pipeline-P2-Dev
+free -h
+df -h .
+docker system df
+
+docker build --pull=false -f gateway/Dockerfile -t private-ai-p23-gateway:qa ./gateway
+docker build --pull=false -f console/Dockerfile -t private-ai-p23-console:qa ./console
+
+docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges \
+  --entrypoint python private-ai-p23-gateway:qa \
+  -c "import gateway, knowledge, semantic, pdf_ingest, pypdf; print('GATEWAY_IMAGE_IMPORT_OK')"
+
+docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges \
+  --entrypoint python private-ai-p23-console:qa \
+  -c "import server, rag; print('CONSOLE_IMAGE_IMPORT_OK')"
+```
+
+`docker build` erzeugt nur zusätzlich markierte Images; es ersetzt keine laufenden Container. Neue Base-Layer und die gepinnte `pypdf`-Abhängigkeit können heruntergeladen werden, falls nicht gecacht. Vor dem Bau freien Platz/RAM prüfen; bei Knappheit den Bau überspringen. Die einmaligen `docker run`-Checks verwenden kein Netzwerk, keine Volumes und starten keine Server. Images nach dem Test nicht ohne weitere Prüfung produktiv einsetzen; Basisimage-Pinning, Security-Review und isolierte Browserabnahme sind offen.
+
 ## Release-Gates
 
-- [ ] Alle Tests auf Pi und GitHub-CI nachgewiesen erfolgreich
+- [x] Vollständige Pi-Python- und JavaScript-Regression nach der Qualitätskorrektur nachgewiesen (71 + 11 Fälle)
+- [ ] GitHub-CI-Gesamtlauf nachgewiesen erfolgreich
 - [ ] ARM64-Build der veränderten Console-/Gateway-Images erfolgreich
 - [x] Isolierter lokaler FTS5-RAG-E2E-Smoketest mit echtem Ollama, SSE, PDF-Seite 2 und passendem Quellenzitat (ein Testfall); Live-Browser-Abnahme weiterhin offen
 - [ ] Injektions- und Zitierqualitäts-Stichproben auf verschiedenen Dokumenten
