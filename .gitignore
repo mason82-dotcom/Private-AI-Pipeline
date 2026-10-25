@@ -5,6 +5,7 @@
 
 # Python/JS temporary files
 __pycache__/
+.venv/
 .pytest_cache/
 __pypackages__/
 *.pyc
@@ -12,6 +13,8 @@ __pypackages__/
 # Persistent runtime state
 *.sqlite
 *.sqlite*
+*.sqlite3
+*.sqlite3-*
 *.db
 *.db-*
 backups/
