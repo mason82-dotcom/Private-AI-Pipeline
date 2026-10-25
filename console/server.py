@@ -166,12 +166,12 @@ class Handler(BaseHTTPRequestHandler):
     def csrf_ok(self, session):
         return session is not None and hmac.compare_digest(self.headers.get('X-CSRF-Token', ''), session['csrf'])
 
-    def read_json(self):
+    def read_json(self, max_size=MAX_BODY):
         try:
             size = int(self.headers.get('Content-Length', '-1'))
         except ValueError as exc:
             raise ValueError('Ungültige Requestgröße') from exc
-        if not 0 < size <= MAX_BODY:
+        if not 0 < size <= max_size:
             raise ValueError('Request zu groß oder leer')
         data = self.rfile.read(size)
         if len(data) != size:
@@ -343,11 +343,19 @@ class Handler(BaseHTTPRequestHandler):
                 self.json_response(403,{'error':'Dokumentenimport ist deaktiviert'})
                 return
             try:
-                data=self.read_json()
-                if set(data) != {'filename','content'} or not isinstance(data['filename'],str) or not isinstance(data['content'],str):
-                    raise ValueError('Ungültige Datei')
-                if len(data['content'].encode('utf-8')) > 48*1024:
-                    raise ValueError('Maximal 48 KiB UTF-8 erlaubt')
+                data=self.read_json(max_size=1_500_000)
+                if set(data)=={'filename','content'}:
+                    if not isinstance(data['filename'],str) or not isinstance(data['content'],str):
+                        raise ValueError('Ungültige Textdatei')
+                    if len(data['content'].encode('utf-8'))>48*1024:
+                        raise ValueError('Maximal 48 KiB UTF-8 erlaubt')
+                elif set(data)=={'filename','pdf_base64'}:
+                    if not isinstance(data['filename'],str) or not data['filename'].lower().endswith('.pdf'):
+                        raise ValueError('Ungültiger PDF-Dateiname')
+                    if not isinstance(data['pdf_base64'],str) or len(data['pdf_base64'])>1_398_104:
+                        raise ValueError('PDF überschreitet 1 MiB')
+                else:
+                    raise ValueError('Ungültiger Import')
                 raw=json.dumps(data,ensure_ascii=False).encode('utf-8')
                 with self.knowledge_upstream('POST','/private/knowledge',raw) as response:
                     result=json.load(response)
