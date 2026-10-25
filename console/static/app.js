@@ -39,7 +39,7 @@ function render(){
     if(k.loading)content='<section class="card empty" role="status">Wissensdaten werden lokal geladen …</section>';
     else if(k.error)content=`<section class="card empty"><strong>Wissensdienst nicht verfügbar</strong><p>${html(k.error)}</p><button class="subtle" id="retryKnowledge">Erneut versuchen</button></section>`;
     else if(memory)content=`<section class="card"><div class="section-head"><h2>Gespeicherte Erinnerungen · ${html(k.scope||'Einzelinstanz')}</h2>${flag('Nur lesen')}</div><p class="hint">Keine automatische Mitschrift; Bearbeiten und Löschen nicht über diese Oberfläche freigeschaltet.</p><label class="field-label" for="knowledgeQuery">Erinnerungen durchsuchen</label><input id="knowledgeQuery" maxlength="200" placeholder="Suchbegriff" value="${html(k.query)}"/><button class="subtle" id="searchKnowledge">Suchen</button>${k.memories.length?k.memories.map(m=>`<article class="memory-row"><strong>${html(m.source)}</strong><p>${html(m.body)}</p></article>`).join(''):'<p class="empty">Keine Erinnerungen gefunden.</p>'}</section>`;
-    else content=`<section class="card"><div class="section-head"><h2>Lokale Wissensdokumente · ${html(k.scope||'Einzelinstanz')}</h2>${flag(k.importEnabled?'Import freigeschaltet':'Import gesperrt')}</div><p class="hint">Nur indizierte Textdateien dieses serverseitig festgelegten Namensraums. Keine PDFs und keine systemweiten Projektfreigaben.</p><div class="knowledge-actions"><label for="knowledgeQuery" class="sr">Dokumentinhalt suchen</label><input id="knowledgeQuery" maxlength="200" placeholder="Quellen durchsuchen …" value="${html(k.query)}"><button id="searchKnowledge" class="subtle">Suchen</button>${k.importEnabled?'<label class="import-button">Datei importieren <input type="file" id="importFile" accept=".md,.txt,.rst,text/plain" /></label>':''}</div><div class="knowledge-table" role="list">${k.documents.length?k.documents.map(d=>`<div class="document-row" role="listitem"><span class="file-icon">▤</span><span><strong>${html(d.filename)}</strong><small>ID ${html(d.id)} · ${html(d.chunks)} Textabschnitte · ${html(d.imported_at)}</small></span>${flag('Indiziert',true)}</div>`).join(''):'<p class="empty">Noch keine Dokumente importiert.</p>'}</div>${k.results.length?`<h2>Fundstellen</h2>${k.results.map(r=>`<div class="memory-row"><strong>${html(r.source)}</strong><p>${html(r.excerpt)}</p></div>`).join('')}`:''}</section>`;
+    else content=`<section class="card"><div class="section-head"><h2>Lokale Wissensdokumente · ${html(k.scope||'Einzelinstanz')}</h2>${flag(k.importEnabled?'Import freigeschaltet':'Import gesperrt')}</div><p class="hint">Indizierte UTF-8-Texte und textbasierte PDFs (max. 1 MiB, 16 Seiten). Gescannte PDFs benötigen eine spätere OCR-Erweiterung.</p><div class="knowledge-actions"><label for="knowledgeQuery" class="sr">Dokumentinhalt suchen</label><input id="knowledgeQuery" maxlength="200" placeholder="Quellen durchsuchen …" value="${html(k.query)}"><button id="searchKnowledge" class="subtle">Suchen</button>${k.importEnabled?'<label class="import-button">Datei importieren <input type="file" id="importFile" accept=".md,.txt,.rst,.pdf,text/plain,application/pdf" /></label>':''}</div><div class="knowledge-table" role="list">${k.documents.length?k.documents.map(d=>`<div class="document-row" role="listitem"><span class="file-icon">▤</span><span><strong>${html(d.filename)}</strong><small>ID ${html(d.id)} · ${html(d.chunks)} Textabschnitte · ${html(d.format||'text')} · ${html(d.imported_at)}</small></span>${flag('Indiziert',true)}</div>`).join(''):'<p class="empty">Noch keine Dokumente importiert.</p>'}</div>${k.results.length?`<h2>Fundstellen</h2>${k.results.map(r=>`<div class="memory-row"><strong>${html(r.filename||r.source)}${Number.isInteger(r.page)?' · Seite '+r.page:''}</strong><small>${html(r.source)}</small><p>${html(r.excerpt)}</p></div>`).join('')}`:''}</section>`;
     box.innerHTML=title('Wissen & Gedächtnis','Lokale Quellen und bewusst gespeicherte Erinnerungen. Zugriff ausschließlich für die konfigurierte Einzelinstanz.')+t+`<div class="readonly-note">Keine projektübergreifende Multiuser-Freigabe. Schreibende Memory-Funktionen bleiben deaktiviert.</div>`+content;
   } else if(state.view==='agents'){
     box.innerHTML=title('Agenten','MCP-Clients und Werkzeuge benötigen serverseitig erzwungene, projektbezogene Richtlinien.')+
@@ -79,11 +79,21 @@ async function loadKnowledge(query=''){
 }
 async function importText(file){
   if(!file)return;
-  if(!/\.(md|txt|rst)$/i.test(file.name) || file.size>48*1024){toast('Nur .md/.txt/.rst bis 48 KiB erlaubt');return;}
+  const pdf=/\.pdf$/i.test(file.name);
+  if(!(/\.(md|txt|rst)$/i.test(file.name)||pdf) || file.size>(pdf?1024*1024:48*1024)){toast('Text bis 48 KiB oder textbasiertes PDF bis 1 MiB');return;}
   try{
-    const content=await file.text();
-    if(content.includes('\uFFFD')||content.includes('\u0000'))throw Error('Datei ist kein gültiger UTF-8-Text');
-    const response=await fetchJSON('/api/documents/import',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':state.csrf},body:JSON.stringify({filename:file.name,content})});
+    let payload;
+    if(pdf){
+      const bytes=new Uint8Array(await file.arrayBuffer());
+      if(bytes.length<16||String.fromCharCode(...bytes.subarray(0,5))!=='%PDF-')throw Error('Keine gültige PDF-Datei');
+      let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));
+      payload={filename:file.name,pdf_base64:btoa(binary)};
+    }else{
+      const content=await file.text();
+      if(content.includes('\uFFFD')||content.includes('\u0000'))throw Error('Datei ist kein gültiger UTF-8-Text');
+      payload={filename:file.name,content};
+    }
+    const response=await fetchJSON('/api/documents/import',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':state.csrf},body:JSON.stringify(payload)});
     toast(response.duplicate?'Dokument bereits vorhanden':'Dokument indiziert');
     await loadKnowledge();
   }catch(e){toast(e.message);}
