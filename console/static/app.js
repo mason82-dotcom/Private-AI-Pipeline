@@ -1,7 +1,7 @@
 'use strict';
 // This frontend never knows PIPELINE_TOKEN. All requests are same-origin and authenticated.
 const $ = sel => document.querySelector(sel);
-const state = { view:'overview',tab:{knowledge:'documents',system:'services'},csrf:null,status:null,models:[],modelsError:null,modelsChecked:null,model:null,history:[],busy:false,abort:null,checked:null,knowledge:{documents:[],memories:[],results:[],error:null,loading:false,importEnabled:false,semanticEnabled:false,searchMode:'fts',scope:null,query:''} };
+const state = { view:'overview',tab:{knowledge:'documents',system:'services'},csrf:null,status:null,models:[],modelsError:null,modelsChecked:null,model:null,history:[],busy:false,abort:null,checked:null,rag:{enabled:false,active:false,mode:'fts'},knowledge:{documents:[],memories:[],results:[],error:null,loading:false,importEnabled:false,semanticEnabled:false,searchMode:'fts',scope:null,query:''} };
 const labels={overview:'Übersicht',chat:'Chat',knowledge:'Wissen & Gedächtnis',agents:'Agenten',system:'System'};
 const navigation=[['overview','Übersicht'],['chat','Chat'],['knowledge','Wissen & Gedächtnis'],['agents','Agenten'],['system','System'],['system:models','Modelle'],['system:backups','Sicherungen']];
 const html=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -29,8 +29,8 @@ function render(){
     box.innerHTML=title('Chat','Flüchtige Unterhaltung mit dem lokalen Modell. Eine eigene Chat-Historie wird nicht dauerhaft gespeichert.')+
     `<div class="readonly-note">Einzelinstanz; aktuell kein echter Projektfilter. Der bestehende Open-WebUI-Chatverlauf wird separat von Open WebUI verwaltet.</div>`+
     `<section class="card chat"><div class="chatbar"><span>${flag(state.modelsError?'Modellliste offline':state.models.length?'Modell vorhanden':'Kein Modell gemeldet',state.modelsError?false:state.models.length>0)}</span><select id="model" aria-label="Lokales Sprachmodell auswählen">${state.models.map(m=>`<option value="${html(m.id)}" ${state.model===m.id?'selected':''}>${html(m.id)}</option>`).join('')}</select></div>
-    <div class="messages" id="messages" aria-live="polite">${state.history.length?state.history.map(m=>`<div class="msg ${m.role}"><span>${m.role==='user'?'Sie':'Lokales Modell'}</span><div>${html(m.content)}</div></div>`).join(''):'<div class="empty">Noch keine Nachrichten. Wählen Sie ein lokales Modell und stellen Sie eine Frage.</div>'}</div>
-    <form id="chatForm"><label for="prompt" class="sr">Nachricht</label><textarea id="prompt" maxlength="4000" placeholder="Frage an Ihr lokales Modell …" required></textarea><div class="chat-actions"><span>Kein Cloud-Fallback · lokaler Browser-Sitzungsverlauf</span><button type="button" id="stop" ${state.busy?'':'hidden'}>Stoppen</button><button class="primary" id="send" type="submit" ${!state.model||state.busy?'disabled':''}>${state.busy?'Antwort läuft …':'Senden →'}</button></div></form></section>`;
+    <div class="messages" id="messages" aria-live="polite">${state.history.length?state.history.map(m=>`<div class="msg ${m.role}"><span>${m.role==='user'?'Sie':'Lokales Modell'}</span><div>${html(m.content)}</div>${Array.isArray(m.sources)&&m.sources.length?`<details class="rag-sources"><summary>Abgerufene Fundstellen (${m.sources.length}) – nicht automatisch verifiziert</summary>${m.sources.map(src=>`<p><strong>[${html(src.id)}] ${html(src.filename||src.source)}${Number.isInteger(src.page)?' · Seite '+src.page:''}</strong><small> ${html(src.source)}</small> ${html(src.excerpt)}</p>`).join('')}</details>`:''}</div>`).join(''):'<div class="empty">Noch keine Nachrichten. Wählen Sie ein lokales Modell und stellen Sie eine Frage.</div>'}</div>
+    <form id="chatForm"><label for="prompt" class="sr">Nachricht</label><textarea id="prompt" maxlength="4000" placeholder="Frage an Ihr lokales Modell …" required></textarea><div class="chat-actions"><label><input type="checkbox" id="ragToggle" ${state.rag.active?'checked':''} ${state.rag.enabled&&!state.busy?'':'disabled'}> Mit Dokumenten antworten${state.rag.enabled?'':' (gesperrt)'}</label><label>Suche <select id="ragMode" aria-label="RAG-Suchmodus" ${state.rag.active&&!state.busy?'':'disabled'}><option value="fts" ${state.rag.mode==='fts'?'selected':''}>Volltext</option><option value="semantic" ${state.rag.mode==='semantic'?'selected':''}>Semantisch</option></select></label><span>Kein Cloud-Fallback · lokaler Browser-Sitzungsverlauf</span><button type="button" id="stop" ${state.busy?'':'hidden'}>Stoppen</button><button class="primary" id="send" type="submit" ${!state.model||state.busy?'disabled':''}>${state.busy?'Antwort läuft …':'Senden →'}</button></div></form></section>`;
     const messages=$('#messages');messages.scrollTop=messages.scrollHeight;
   } else if(state.view==='knowledge'){
     const t=tabs('knowledge',[['documents','Dokumente'],['memory','Erinnerungen']]);
@@ -99,7 +99,9 @@ async function importText(file){
     await loadKnowledge();
   }catch(e){toast(e.message);}
 }
-async function refresh(){const [a,b]=await Promise.allSettled([fetchJSON('/api/status'),fetchJSON('/api/models')]);
+async function refresh(){const [a,b,c]=await Promise.allSettled([fetchJSON('/api/status'),fetchJSON('/api/models'),fetchJSON('/api/rag-config')]);
+  state.rag.enabled=c.status==='fulfilled'&&c.value.enabled===true;
+  if(!state.rag.enabled)state.rag.active=false;
   state.status=a.status==='fulfilled'?a.value:{gateway:'unreachable',inference:'not_checked',source:'request_failed',observed_at:null};
   state.modelsError=b.status==='rejected'?b.reason?.message||'Nicht erreichbar':null;
   state.models=b.status==='fulfilled'?b.value.models:[];
@@ -124,19 +126,28 @@ function buildChatMessages(history, prompt){
 }
 
 function extractEvents(buffer,flush){const out=[];let index;while((index=buffer.indexOf('\n\n'))!==-1){out.push(buffer.slice(0,index));buffer=buffer.slice(index+2)}if(flush&&buffer.trim())out.push(buffer);return {events:out,buffer}}
-function chunkText(evt){for(const line of evt.split('\n')){if(!line.startsWith('data:'))continue;const v=line.slice(5).trim();if(v==='[DONE]')return {done:true};try{const msg=JSON.parse(v);const delta=msg.choices?.[0]?.delta?.content;if(typeof delta==='string')return {text:delta};}catch{throw Error('Ungültiges SSE-Paket')}}return {text:''}}
+function chunkText(evt){
+  if(evt.startsWith('event: rag_sources\n')){
+    const line=evt.split('\n').find(l=>l.startsWith('data:'));
+    try{
+      const data=JSON.parse((line||'').slice(5));
+      if(!Array.isArray(data.sources)||data.sources.length>3)throw Error();
+      return {sources:data.sources};
+    }catch{throw Error('Ungültige RAG-Fundstellen')}
+  }
+  for(const line of evt.split('\n')){if(!line.startsWith('data:'))continue;const v=line.slice(5).trim();if(v==='[DONE]')return {done:true};try{const msg=JSON.parse(v);const delta=msg.choices?.[0]?.delta?.content;if(typeof delta==='string')return {text:delta};}catch{throw Error('Ungültiges SSE-Paket')}}return {text:''}}
 async function chatSend(e){e.preventDefault();if(state.busy||!state.model)return;const prompt=$('#prompt').value.trim();if(!prompt)return;
   const prior=buildChatMessages(state.history,prompt);
   state.history.push({role:'user',content:prompt},{role:'assistant',content:''});state.busy=true;const ctrl=new AbortController();state.abort=ctrl;render();
   try{
-    const response=await fetch('/api/chat',{method:'POST',credentials:'same-origin',signal:ctrl.signal,headers:{'Content-Type':'application/json','X-CSRF-Token':state.csrf},body:JSON.stringify({model:state.model,messages:prior})});
+    const response=await fetch('/api/chat',{method:'POST',credentials:'same-origin',signal:ctrl.signal,headers:{'Content-Type':'application/json','X-CSRF-Token':state.csrf},body:JSON.stringify({model:state.model,messages:prior,rag:state.rag.active,rag_mode:state.rag.mode})});
     if(!response.ok){let reason='Lokaler Modellfehler';try{reason=(await response.json()).error||reason}catch{};throw Error(reason)}
     if(!response.body)throw Error('Streaming wird vom Browser nicht unterstützt');
     const reader=response.body.getReader(),decoder=new TextDecoder();let carry='',finished=false,received=0;
     while(!finished){const {value,done}=await reader.read();if(done)break;carry+=decoder.decode(value,{stream:true});carry=carry.replace(/\r\n/g,'\n');received+=value.length;
       if(received>8*1024*1024)throw Error('Antwort zu umfangreich');
       const parsed=extractEvents(carry,false);carry=parsed.buffer;
-      for(const evt of parsed.events){const chunk=chunkText(evt);if(chunk.done){finished=true;break}if(chunk.text)state.history[state.history.length-1].content+=chunk.text}
+      for(const evt of parsed.events){const chunk=chunkText(evt);if(chunk.done){finished=true;break}if(chunk.sources){if(state.rag.active)state.history[state.history.length-1].sources=chunk.sources;continue}if(chunk.text)state.history[state.history.length-1].content+=chunk.text}
       const msgs=$('#messages');if(msgs){const last=msgs.querySelector('.msg:last-child div');if(last)last.textContent=state.history[state.history.length-1].content;msgs.scrollTop=msgs.scrollHeight;}
     }
     if(!finished)throw Error('Antwortstream unvollständig; Ausgabe möglicherweise gekürzt.');
@@ -173,7 +184,7 @@ document.addEventListener('click',e=>{
   if(e.target.id==='retryKnowledge')loadKnowledge();
   if(e.target.id==='searchKnowledge')loadKnowledge($('#knowledgeQuery')?.value?.trim()||'');
 });
-document.addEventListener('change',e=>{if(e.target.id==='model')state.model=e.target.value;if(e.target.id==='importFile')importText(e.target.files?.[0]);if(e.target.id==='searchMode'){state.knowledge.searchMode=e.target.value==='semantic'?'semantic':'fts';render();}});
+document.addEventListener('change',e=>{if(e.target.id==='model')state.model=e.target.value;if(e.target.id==='ragToggle'){state.rag.active=state.rag.enabled&&e.target.checked;render()}if(e.target.id==='ragMode')state.rag.mode=e.target.value==='semantic'?'semantic':'fts';if(e.target.id==='importFile')importText(e.target.files?.[0]);if(e.target.id==='searchMode'){state.knowledge.searchMode=e.target.value==='semantic'?'semantic':'fts';render();}});
 document.addEventListener('submit',e=>{if(e.target.id==='chatForm')chatSend(e)});
 document.addEventListener('keydown',e=>{
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();openPalette();}
