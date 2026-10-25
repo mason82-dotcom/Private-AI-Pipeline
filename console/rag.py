@@ -24,7 +24,9 @@ def build_rag_messages(messages, search_result):
         excerpt=hit.get('excerpt')
         if not isinstance(source,str) or not SOURCE_RE.fullmatch(source):
             raise ValueError('Ungültige Quellenkennung')
-        if not isinstance(excerpt,str) or not excerpt.strip():
+        if not isinstance(excerpt,str):
+            raise ValueError('Ungültiger Dokumenttext')
+        if not excerpt.strip():
             continue
         text=excerpt[:MAX_EXCERPT].strip()
         filename=hit.get('filename')
