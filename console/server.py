@@ -110,7 +110,11 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header('Set-Cookie', cookie)
         self.send_header('Content-Length', str(len(raw)))
         self.end_headers()
-        self.wfile.write(raw)
+        try:
+            self.wfile.write(raw)
+        except (BrokenPipeError, ConnectionResetError):
+            # The client already left; do not raise another error in the server thread.
+            self.close_connection = True
 
     def send_file(self, path, mimetype):
         raw = (STATIC_DIR / path).read_bytes()
