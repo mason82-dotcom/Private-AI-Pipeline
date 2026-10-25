@@ -101,7 +101,11 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('Content-Length', str(len(data)))
         self.send_header('Cache-Control', 'no-store')
         self.end_headers()
-        self.wfile.write(data)
+        try:
+            self.wfile.write(data)
+        except (BrokenPipeError, ConnectionResetError):
+            # Client disconnects during slow inference are expected.
+            self.close_connection = True
 
     def authorized(self):
         actual = self.headers.get('Authorization', '')
