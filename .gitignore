@@ -8,3 +8,33 @@ backups/
 __pypackages__/
 *.tar.gz
 state/
+
+# Local runtime data
+.env
+.env.*
+!.env.example
+__pycache__/
+*.pyc
+*.db
+*.db-*
+*.sqlite
+*.sqlite*
+backups/
+state/
+documents/
+*.log
+
+# Local runtime data
+.env
+.env.*
+!.env.example
+__pycache__/
+*.pyc
+*.db
+*.db-*
+*.sqlite
+*.sqlite*
+backups/
+state/
+documents/
+*.log
