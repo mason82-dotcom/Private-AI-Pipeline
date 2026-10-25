@@ -1,0 +1,11 @@
+# Opt-in LAN access for the gateway ONLY. WARNING: a normal Docker bridge also
+# permits Internet egress; use a DOCKER-USER/firewall allowlist to enforce LAN-only.
+# Example: docker compose -f compose.yaml -f compose.lan.yaml up -d --build
+services:
+  gateway:
+    networks:
+      - pipeline
+      - lan_egress
+networks:
+  lan_egress:
+    driver: bridge

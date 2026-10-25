@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="Private AI Pipeline – lokaler Web-App-Designprototyp, ohne Cloud-Anbindung.">
+  <title>Private AI Pipeline · Workspace</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script defer src="./app.js"></script>
+</head>
+<body>
+<!-- All graphics local; no CDN, web fonts, external scripts or tracking. -->
+<svg width="0" height="0" aria-hidden="true" style="position:absolute;overflow:hidden">
+ <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.6"/><rect x="14" y="3" width="7" height="7" rx="1.6"/><rect x="3" y="14" width="7" height="7" rx="1.6"/><rect x="14" y="14" width="7" height="7" rx="1.6"/></symbol>
+ <symbol id="i-chat" viewBox="0 0 24 24"><path d="M20 11.5a8 8 0 0 1-8 8 9 9 0 0 1-4.1-1l-4.3 1 1-4.3A8.5 8.5 0 1 1 20 11.5Z"/></symbol>
+ <symbol id="i-books" viewBox="0 0 24 24"><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v18H6.5A2.5 2.5 0 0 0 4 22Z"/><path d="M4 4.5v15A2.5 2.5 0 0 1 6.5 17H20M8 7h8m-8 4h7"/></symbol>
+ <symbol id="i-brain" viewBox="0 0 24 24"><path d="M12 5a4 4 0 0 0-7 1 4 4 0 0 0-1 7 4.4 4.4 0 0 0 3 7 4 4 0 0 0 5-3V5Zm0 0a4 4 0 0 1 7 1 4 4 0 0 1 1 7 4.4 4.4 0 0 1-3 7 4 4 0 0 1-5-3"/><path d="M8 10a3 3 0 0 0 4 3m4-3a3 3 0 0 1-4 3"/></symbol>
+ <symbol id="i-bot" viewBox="0 0 24 24"><rect x="4" y="7" width="16" height="13" rx="3"/><path d="M12 3v4m-4 6v1m8-1v1M8 20v2m8-2v2M2 11v4m20-4v4"/></symbol>
+ <symbol id="i-cpu" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 9h6v6H9zM9 2v4m6-4v4M9 18v4m6-4v4M2 9h4m-4 6h4m12-6h4m-4 6h4"/></symbol>
+ <symbol id="i-server" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="8" rx="2"/><rect x="3" y="13" width="18" height="8" rx="2"/><path d="M7 7h.01M7 17h.01M11 7h7m-7 10h7"/></symbol>
+ <symbol id="i-settings" viewBox="0 0 24 24"><path d="M10 3h4l.7 2.2 2 .9 2.1-1.1 2.7 2.8-1.1 2.1.9 2L23 12l-1.7 2.1-.9 2 1.1 2.1-2.7 2.8-2.1-1.1-2 .9L14 23h-4l-.7-2.2-2-.9-2.1 1.1-2.7-2.8 1.1-2.1-.9-2L1 12l1.7-2.1.9-2-1.1-2.1 2.7-2.8 2.1 1.1 2-.9L10 3Z" transform="translate(0 -1) scale(1 .95)"/><circle cx="12" cy="12" r="3"/></symbol>
+ <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.7"/><path d="m16 16 5 5"/></symbol>
+ <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 4v16M4 12h16"/></symbol>
+ <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+ <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+ <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol>
+ <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
+ <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 2 4 5v6c0 5.5 3.5 8.7 8 11 4.5-2.3 8-5.5 8-11V5l-8-3Z"/><path d="m9 12 2 2 4-4"/></symbol>
+ <symbol id="i-alert" viewBox="0 0 24 24"><path d="m12 3 10 18H2L12 3Z"/><path d="M12 9v5m0 4h.01"/></symbol>
+ <symbol id="i-filter" viewBox="0 0 24 24"><path d="M4 7h16M7 12h10m-7 5h4"/></symbol>
+ <symbol id="i-file" viewBox="0 0 24 24"><path d="M5 3h9l5 5v13H5zM14 3v5h5M8 13h8m-8 4h6"/></symbol>
+ <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+ <symbol id="i-send" viewBox="0 0 24 24"><path d="m21 3-8.5 18-2.8-8.5L1 9.5 21 3Zm0 0-11.3 9.5"/></symbol>
+ <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+ <symbol id="i-x" viewBox="0 0 24 24"><path d="M5 5 19 19M19 5 5 19"/></symbol>
+ <symbol id="i-check" viewBox="0 0 24 24"><path d="m4 12 5 5L20 6"/></symbol>
+ <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+ <symbol id="i-harddrive" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 14h18M7 17h.01M11 17h.01"/></symbol>
+ <symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 2 2.5 7.5L22 12l-7.5 2.5L12 22l-2.5-7.5L2 12l7.5-2.5L12 2Z"/></symbol>
+ <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V3m-5 5 5-5 5 5M4 16v4h16v-4"/></symbol>
+ <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 6h16M9 6V4h6v2m3 0-1 15H7L6 6m4 5v6m4-6v6"/></symbol>
+ <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4 10 14m7 0v6H4V7h6"/></symbol>
+ <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></symbol>
+ </svg>
+<div class="app" id="app">
+  <aside class="sidebar" id="sidebar" aria-label="Hauptnavigation">
+    <a href="#overview" class="brand" data-route="overview" aria-label="Private AI Pipeline – Übersicht">
+      <span class="brand-mark"><span class="mark-dot"></span><span class="mark-path"></span></span>
+      <span class="brand-words"><strong>private<span class="brand-color">ai</span></strong><small>PIPELINE / LOCAL</small></span>
+    </a>
+    <div class="workspace-trigger" id="workspacePicker" role="button" tabindex="0" aria-label="Arbeitsbereich auswählen">
+      <span class="workspace-icon">P</span><span class="workspace-label"><small>ARBEITSBEREICH</small><strong id="workspaceLabel">Persönlich</strong></span><svg class="icon-xs"><use href="#i-down"></use></svg>
+    </div>
+    <nav class="nav-sections" aria-label="Bereiche">
+      <div class="nav-group"><div class="nav-label">WORKSPACE</div>
+        <button data-page="overview" class="nav-link active"><svg class="icon"><use href="#i-grid"></use></svg>Übersicht</button>
+        <button data-page="chat" class="nav-link"><svg class="icon"><use href="#i-chat"></use></svg>Chat <span class="nav-key">⌘1</span></button>
+        <button data-page="knowledge" class="nav-link"><svg class="icon"><use href="#i-books"></use></svg>Wissensbasis</button>
+        <button data-page="memory" class="nav-link"><svg class="icon"><use href="#i-brain"></use></svg>Gedächtnis</button>
+      </div>
+      <div class="nav-group"><div class="nav-label">VERWALTUNG</div>
+        <button data-page="agents" class="nav-link"><svg class="icon"><use href="#i-bot"></use></svg>Agenten</button>
+        <button data-page="models" class="nav-link"><svg class="icon"><use href="#i-cpu"></use></svg>Modelle</button>
+        <button data-page="system" class="nav-link"><svg class="icon"><use href="#i-server"></use></svg>Systemstatus <span class="nav-alert"></span></button>
+        <button data-page="settings" class="nav-link"><svg class="icon"><use href="#i-settings"></use></svg>Einstellungen</button>
+      </div>
+    </nav>
+    <div class="sidebar-bottom">
+      <div class="privacy-panel"><svg class="icon"><use href="#i-shield"></use></svg><div><strong>Privatsphäre zuerst</strong><p>Keine Cloud-Anbindung im Prototyp</p></div></div>
+      <div class="profile"><span class="avatar">OP</span><div class="profile-text"><strong>Lokaler Betreiber</strong><small>Prototyp · Einzelbenutzer</small></div><svg class="icon-xs muted"><use href="#i-more"></use></svg></div>
+    </div>
+  </aside>
+  <div class="mobile-scrim" id="scrim"></div>
+  <div class="app-column">
+    <header class="topbar">
+      <div class="crumbs"><button id="mobileMenu" class="icon-button mobile-menu" aria-label="Menü öffnen"><svg class="icon"><use href="#i-menu"></use></svg></button><span class="crumb-root">Workspace</span><svg class="icon-xs muted"><use href="#i-chevron"></use></svg><strong id="breadcrumb">Übersicht</strong></div>
+      <div class="header-tools">
+        <button id="globalSearch" class="top-search"><svg class="icon"><use href="#i-search"></use></svg><span>Suchen oder springen ...</span><kbd>Ctrl K</kbd></button>
+        <span class="top-divider"></span>
+        <span class="offline-pill"><span class="dot-blue"></span> Lokale Demo</span>
+        <button id="topSettings" class="icon-button" aria-label="Einstellungen öffnen"><svg class="icon"><use href="#i-settings"></use></svg></button>
+      </div>
+    </header>
+    <main id="view" class="view" tabindex="-1"></main>
+    <footer class="app-footer"><span>Private AI Pipeline · Designvorschau v0.1</span><span>Nur Beispieldaten · Keine Backend-Verbindung · Keine externen Ressourcen</span></footer>
+  </div>
+</div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<div id="modalRoot"></div>
+</body>
+</html>
