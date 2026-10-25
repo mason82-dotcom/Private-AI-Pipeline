@@ -257,7 +257,7 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError()
                 kind=params.get('kind',['documents'])[0]
                 q=params.get('q',[''])[0]
-                if kind not in ('documents','memory','search') or len(q)>200: raise ValueError()
+                if kind not in ('documents','memory','search','semantic') or len(q)>200: raise ValueError()
                 query=urllib.parse.urlencode({'kind':kind,'q':q})
                 with self.knowledge_upstream('GET','/private/knowledge?'+query) as response:
                     raw=response.read(128*1024+1)
