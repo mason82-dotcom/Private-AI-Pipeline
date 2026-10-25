@@ -1,6 +1,6 @@
 # P2.3 – Opt-in Dokumenten-Chat (lokales RAG mit Quellen)
 
-**Status:** Implementierter Entwicklungsbranch, **nicht produktiv freigegeben**. Tests und ARM64-/Docker-End-to-End-Abnahme ausstehend. Baut auf P2.1 PDF und P2.2 Semantik auf.
+**Status:** Implementierter Entwicklungsbranch, **nicht produktiv freigegeben**. Automatisierte Pi-Regression (Python/JavaScript) erfolgreich; echte ARM64-/Docker-/Ollama-End-to-End-Abnahme ausstehend. Baut auf P2.1 PDF und P2.2 Semantik auf.
 
 ## Funktion
 
@@ -60,3 +60,11 @@ Die Python-HTTP-Tests verwenden einen simulierten lokalen Ollama-Server mit echt
 - [ ] Herkunft/Status der Quellen und Auswirkung von Dokument-Updates geprüft
 - [ ] Review und Merge-Kette: P2.1 PDF → P2.2 Semantik → P2.3 RAG
 
+
+## Nachgewiesene Pi-Regression, 25.10.2026
+
+- Separate P2.3-Tests: **5/5 bestanden** (3,727 s): RAG-Prompt-Begrenzung, fehlerhafte Quellen, Anmeldung/CSRF/Featureflag, SSE-Quellennachweis und normaler Chat, Fail-Closed-Verhalten.
+- Gesamtsuite: **70/70 Python-Tests bestanden** (46,654 s), keine Fehler und keine übersprungenen Tests.
+- JavaScript: Syntaxprüfung ohne Fehlermeldung, **11 Chat-Historie-/RAG-SSE-Regressionsfälle bestanden**.
+- Git-Status am Pi: Branch `feature/p2-rag-chat-citations` auf `origin/...`, unversionierte `.agents/` und `skills-lock.json` vorhanden; Herkunft nicht bestätigt, nicht automatisch committen oder löschen.
+- Diese Tests nutzen für RAG ein simuliertes Ollama; **kein** Nachweis für produktive Docker-Container, echten Qwen-RAG-Inferenzlauf oder PDF-Anzeige im Live-Browser.
