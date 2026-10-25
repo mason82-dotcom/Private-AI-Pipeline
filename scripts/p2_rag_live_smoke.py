@@ -135,6 +135,19 @@ def parse_stream(response):
     return sources, ''.join(delta)
 
 
+def assess_fixture_answer(answer, sources):
+    """Fixture-specific quality check; NOT a general factuality verifier."""
+    import unicodedata
+    folded=unicodedata.normalize('NFKD',answer.lower())
+    folded=''.join(c for c in folded if not unicodedata.combining(c))
+    cited=any('['+s['id']+']' in answer for s in sources
+              if isinstance(s,dict) and s.get('id')=='Q1')
+    fact=('druck' in folded and 'zylinder' in folded)
+    refusal=('keine antwort' in folded or 'nicht beantwortbar' in folded)
+    return {'citation_present':cited,'fixture_fact_present':fact,'unsupported_refusal':refusal,
+            'quality_pass':bool(cited and fact and not refusal)}
+
+
 def main():
     start = time.monotonic()
     preflight()
@@ -204,8 +217,13 @@ def main():
                   f'{sources[0]["id"]} (Quellen-ID, nicht automatisch verifiziert)')
             print(f'LLM-SSE vollständig; Token-Text {len(answer)} Zeichen; Antwortzeit {elapsed:.1f} s')
             print('Modellantwort (gekürzt):', answer[:450].replace('\n', ' '))
-            print('Quellenzitat im Modelltext:', '[Q1]' in answer)
+            quality=assess_fixture_answer(answer,sources)
+            print('Quellenzitat im Modelltext:', quality['citation_present'])
             print('P2.3 REAL LOCAL FTS5 RAG TRANSPORT: PASS')
+            print('P2.3 FIXTURE ANSWER QUALITY:', 'PASS' if quality['quality_pass'] else 'FAIL')
+            if not quality['quality_pass']:
+                print('Qualitaetsdetails:', json.dumps(quality, ensure_ascii=False))
+                raise RuntimeError('Quellenbelegte inhaltliche Antwort fehlt; Transport war erfolgreich')
         finally:
             for server in (console, gateway):
                 if server:
