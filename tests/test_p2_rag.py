@@ -13,6 +13,8 @@ import test_p1_p2_knowledge as base
 from memdb import connect
 from knowledge import add_document, add_pdf_pages
 from rag import build_rag_messages
+sys.path.insert(0,str(ROOT/'scripts'))
+from p2_rag_live_smoke import assess_fixture_answer
 
 class FakeChatOllama(base.FakeOllama):
     def do_POST(self):
@@ -49,6 +51,19 @@ class TestRAGBuilder(unittest.TestCase):
                     'not-a-dict'):
             with self.subTest(hit=hit), self.assertRaises(ValueError):
                 build_rag_messages([{'role':'user','content':'Frage'}],{'results':[hit]})
+
+class TestRAGQuality(unittest.TestCase):
+    def test_fixture_requires_evidence_and_matching_citation(self):
+        source=[{'id':'Q1','source':'pdf:test:p2#0','excerpt':'Die Hydraulikpumpe erzeugt Druckoel fuer die Baggerzylinder.'}]
+        correct='Die Hydraulikpumpe erzeugt Druck fuer die Baggerzylinder. [Q1]'
+        refused='Die gefundenen Dokumente belegen dazu keine Antwort.'
+        no_cite='Die Pumpe erzeugt Druck fuer die Zylinder.'
+        bad_cite='Die Pumpe erzeugt Druck fuer die Zylinder. [Q7]'
+        self.assertTrue(assess_fixture_answer(correct,source)['quality_pass'])
+        for answer in (refused,no_cite,bad_cite,'Die Sonne scheint. [Q1]'):
+            with self.subTest(answer=answer):
+                self.assertFalse(assess_fixture_answer(answer,source)['quality_pass'])
+
 
 class TestRAGHTTP(unittest.TestCase):
     setUp=base.TestKnowledgeHTTP.setUp
