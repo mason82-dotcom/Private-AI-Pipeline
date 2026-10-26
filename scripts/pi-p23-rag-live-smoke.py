@@ -28,6 +28,7 @@ from gateway import Server as GatewayServer  # noqa: E402
 from server import Server as ConsoleServer, hash_password  # noqa: E402
 from memdb import connect  # noqa: E402
 from knowledge import add_document  # noqa: E402
+from semantic import OllamaEmbedder, pending_index  # noqa: E402
 
 OLLAMA = "http://127.0.0.1:11434"
 MODEL_NAME = re.compile(r"^[A-Za-z0-9_.:/-]{1,128}$")
@@ -88,6 +89,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", default="qwen3:0.6b",
                         help="Already-installed local Ollama chat model; no download")
+    parser.add_argument("--mode", choices=("fts", "semantic"), default="fts",
+                        help="RAG retrieval mode; semantic mode explicitly indexes isolated test data")
+    parser.add_argument("--embed-model", choices=("nomic-embed-text:latest", "bge-m3:latest"),
+                        default="nomic-embed-text:latest", help="Already-installed local embedding model")
     args = parser.parse_args()
     if not MODEL_NAME.fullmatch(args.model) or "://" in args.model:
         parser.error("Invalid model name")
@@ -97,6 +102,9 @@ def main():
     if not installed_model(args.model):
         return 2
     print("Model present:", args.model, flush=True)
+    if args.mode == "semantic" and not installed_model(args.embed_model):
+        return 2
+    print("RAG retrieval mode:", args.mode, flush=True)
 
     with tempfile.TemporaryDirectory(prefix="pai-p23-rag-live-") as tmp:
         db_path = str(Path(tmp) / "test.sqlite3")
@@ -105,13 +113,25 @@ def main():
             add_document(db, "other-namespace", "secret.txt",
                          "Diese Fremdquelle darf im Test niemals erscheinen.")
 
+        if args.mode == "semantic":
+            # Index only our temporary test document; never scan production memory.
+            started = time.monotonic()
+            with connect(db_path) as db:
+                embedder = OllamaEmbedder(OLLAMA, args.embed_model, timeout=60)
+                index_result = pending_index(db, "p23-smoke", embedder, limit=2)
+            if index_result["indexed"] != 1 or index_result["namespace"] != "p23-smoke":
+                raise RuntimeError("Isolated semantic index did not contain exactly one document")
+            print("Semantic index: PASS (1/1 test chunk)", flush=True)
+            print("Index elapsed seconds:", round(time.monotonic() - started, 2), flush=True)
+
         pipeline_token = secrets.token_urlsafe(48)
         knowledge_token = secrets.token_urlsafe(48)
         password = secrets.token_urlsafe(24)
         gateway = GatewayServer(
             ("127.0.0.1", 0), OLLAMA, pipeline_token, db_path, False,
             knowledge_token=knowledge_token, knowledge_namespace="p23-smoke",
-            import_enabled=False, semantic_enabled=False)
+            import_enabled=False, semantic_enabled=args.mode == "semantic",
+            semantic_model=args.embed_model)
         console = None
         try:
             console = ConsoleServer(
@@ -143,7 +163,7 @@ def main():
                 "model": args.model,
                 "messages": [{"role": "user", "content": QUESTION}],
                 "rag": True,
-                "rag_mode": "fts",
+                "rag_mode": args.mode,
             }
             start = time.monotonic()
             with post(opener, root + "/api/chat", payload, csrf=csrf) as response:
@@ -177,7 +197,10 @@ def main():
             if not has_citation:
                 print("CONTENT REVIEW REQUIRED: transport passed but model omitted citation")
                 return 3
-            print("P2.3 LIVE RAG API SMOKE: PASS")
+            if args.mode == "semantic":
+                print("P2.3 SEMANTIC RAG API SMOKE: PASS")
+            else:
+                print("P2.3 LIVE RAG API SMOKE: PASS")
             return 0
         finally:
             if console is not None:
