@@ -1,6 +1,6 @@
 # P2.3 – Optionale lokale Chat-Antworten mit Dokumentquellen
 
-**Status: Draft / Entwicklung.** Neue P2.3-Python-Regression und JavaScript-RAG-SSE-Regressionsprüfungen wurden auf dem Raspberry Pi bestanden; echte Pi-/Docker-/LLM-RAG-End-to-End-Abnahme und GitHub-CI sind noch nicht bestätigt. Keine Änderung am produktiven Raspberry-Pi-Stack.
+**Status: Draft / Entwicklung.** Gesamte P2.3-Regression auf dem Raspberry Pi bestanden: 79 Python-Tests, JavaScript-Syntax und 11 Chat-/RAG-SSE-Fälle mit Exit-Code 0. Echte LLM-RAG-/Docker-/Browser-End-to-End-Abnahme und GitHub-CI stehen weiterhin aus. Keine Änderungen am produktiven Raspberry-Pi-Stack.
 
 ## Funktionen
 
@@ -50,8 +50,8 @@ Die `test_p23_rag.py`-Tests verwenden ausschließlich Loopback mit simuliertem O
 
 ## Release-Gates
 
-- [x] Pi-Python-Gesamtlauf inklusive P2.3: 71 Tests in 47,227 Sekunden, Ergebnis OK (26.10.2026, Nutzerprotokoll)
-- [x] Chat-Kontext- und RAG-SSE-JavaScript-Regression: 11 Fälle erfolgreich; JavaScript-Syntaxcheck ohne gemeldeten Fehler (26.10.2026, Nutzerprotokoll)
+- [x] Pi-Python-Gesamtlauf inklusive P2.3: 79 Tests in 58,193 Sekunden, Exit-Code 0 (26.10.2026, Nutzerprotokoll)
+- [x] Chat-Kontext- und RAG-SSE-JavaScript-Regression: 11/11 bestanden; JavaScript-Syntaxcheck Exit-Code 0 (26.10.2026, Nutzerprotokoll)
 - [ ] CI-Lauf auf GitHub bestätigt
 - [ ] Echtes mehrseitiges PDF mit Seitenangabe in Chat geprüft
 - [ ] Semantische RAG-Suche mit echtem Modell (Latenz, Speicher, Ausfallverhalten)
@@ -63,8 +63,31 @@ Die `test_p23_rag.py`-Tests verwenden ausschließlich Loopback mit simuliertem O
 
 ## Pi-Testnachweis vom 26.10.2026
 
-- Python: `Ran 71 tests in 47.227s` / `OK`.
+- Vorläufiger Stand: `Ran 71 tests in 47.227s` / `OK`.
+- Aktualisierter vollständiger Stand: `Ran 79 tests in 58.193s` / `OK`, Python Exit-Code 0.
 - JavaScript: `Chat context and RAG SSE regression tests OK (11 cases)`.
-- Checkout-Meldung bei der Abnahme: `feature/p2-rag-chat-citations...origin/feature/p2-rag-chat-citations [behind 5]`. Das Prüfprotokoll belegt somit nicht automatisch einen Test des jüngsten Remote-Commits. Nach dem Fast-Forward einen erneuten Gesamtlauf durchführen.
+- Beim früheren Stand war der Checkout fünf Commits hinter `origin`; danach erfolgte ein Fast-Forward. Der gemeldete erfolgreiche 79-Test-Lauf bezieht sich auf den aktualisierten P2.3-Stand **vor dem Hinzufügen des Live-Smoke-Skripts und dieser Dokumentationsänderung**.
 - Unversionierte lokale Dateien `.agents/` und `skills-lock.json` wurden gemeldet. Diese nicht automatisch löschen, überschreiben oder committen.
 - Keine realen RAG-Antworten des Ollama-Chatmodells, keine Container-/Browserabnahme und kein Produktiv-Deploy nachgewiesen.
+
+## P2.3 isolierter Live-API-Smoke mit echtem lokalem Ollama (noch auszuführen)
+
+Der neue Test `scripts/pi-p23-rag-live-smoke.py` startet **nur zwei temporäre Python-HTTP-Server auf zufälligen 127.0.0.1-Ports** (Gateway und Light Console), verwendet eine SQLite-Datenbank in `tempfile.TemporaryDirectory`, erstellt nur Testdokumente und zufällige In-Memory-Schlüssel und verbindet sich mit dem **bereits laufenden lokalen** Ollama `127.0.0.1:11434`. Er nutzt ausschließlich die FTS5-Dokumentensuche, kein zusätzliches Embedding-Modell und keinen Docker-Container.
+
+Vorbereitung: freien RAM und Swap sowie `ollama ps` und `ollama list` prüfen, keine großen Modelle zeitgleich laufen lassen. Kein Modell-Download; der Test lehnt nicht installierte Modellnamen vor der Inferenz ab.
+
+```bash
+cd ~/Projekte/Private-AI-Pipeline-P2-Dev
+git fetch origin
+git pull --ff-only origin feature/p2-rag-chat-citations
+.venv/bin/python -m py_compile scripts/pi-p23-rag-live-smoke.py
+.venv/bin/python scripts/pi-p23-rag-live-smoke.py --model qwen3:0.6b \
+  > /tmp/p23-rag-live-smoke.log 2>&1
+rc=$?
+tail -30 /tmp/p23-rag-live-smoke.log
+echo "Live-Smoke Exit-Code: $rc"
+```
+
+Exit-Code **0**: Transport, geschützter Login/CSRF, scoping, SSE-Quelle und Modellzitat `[Q1]` nachgewiesen. **3**: Modell hat Text geliefert, aber `[Q1]` nicht in der Antwort verwendet; dies ist ein begrenzter Modell-Qualitätsbefund, kein Beweis für einen defekten API-Transport. **2**: gewähltes Chatmodell ist nicht lokal installiert. **1**: anderer Fehler; Protokoll prüfen.
+
+Der Test ist ein echter lokaler **API-Smoketest**, keine produktive Bereitstellung, keine Docker-Abnahme und kein vollständiger Browser-UI-Test. Eine positive Quelle in SSE belegt außerdem noch nicht die Richtigkeit aller generierten Aussagen.
