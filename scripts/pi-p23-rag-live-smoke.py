@@ -110,6 +110,10 @@ def main():
         db_path = str(Path(tmp) / "test.sqlite3")
         with connect(db_path) as db:
             add_document(db, "p23-smoke", "hydraulik-test.txt", DOCUMENT)
+            if args.mode == "semantic":
+                add_document(db, "p23-smoke", "kuchen-kontrolle.txt",
+                             "Ein Apfelkuchen wird mit Äpfeln, Mehl und Zucker "
+                             "im Backofen gebacken.")
             add_document(db, "other-namespace", "secret.txt",
                          "Diese Fremdquelle darf im Test niemals erscheinen.")
 
@@ -119,9 +123,9 @@ def main():
             with connect(db_path) as db:
                 embedder = OllamaEmbedder(OLLAMA, args.embed_model, timeout=60)
                 index_result = pending_index(db, "p23-smoke", embedder, limit=2)
-            if index_result["indexed"] != 1 or index_result["namespace"] != "p23-smoke":
-                raise RuntimeError("Isolated semantic index did not contain exactly one document")
-            print("Semantic index: PASS (1/1 test chunk)", flush=True)
+            if index_result["indexed"] != 2 or index_result["namespace"] != "p23-smoke":
+                raise RuntimeError("Isolated semantic index did not contain exactly two documents")
+            print("Semantic index: PASS (2/2 test chunks)", flush=True)
             print("Index elapsed seconds:", round(time.monotonic() - started, 2), flush=True)
 
         pipeline_token = secrets.token_urlsafe(48)
@@ -174,12 +178,18 @@ def main():
             elapsed = time.monotonic() - start
 
             result, answer, done = parse_sse(raw.decode("utf-8"))
-            if not done or not isinstance(result, list) or len(result) != 1:
-                raise RuntimeError("Missing SSE completion or exactly one RAG source")
+            expected_sources = 2 if args.mode == "semantic" else 1
+            if not done or not isinstance(result, list) or len(result) != expected_sources:
+                raise RuntimeError("Missing SSE completion or unexpected RAG source count")
             source = result[0]
             if (source.get("id") != "Q1" or source.get("filename") != "hydraulik-test.txt"
                     or "Hydraulikpumpe" not in source.get("excerpt", "")):
                 raise RuntimeError("RAG source provenance mismatch")
+            if args.mode == "semantic":
+                if (result[1].get("id") != "Q2" or
+                        result[1].get("filename") != "kuchen-kontrolle.txt"):
+                    raise RuntimeError("Semantic retrieval did not rank the relevant source first")
+                print("Semantic ranking: Hydraulik [Q1] before Apfelkuchen [Q2]: PASS")
             if ("Fremdquelle" in raw.decode("utf-8")
                     or pipeline_token in raw.decode("utf-8")
                     or knowledge_token in raw.decode("utf-8")):
@@ -188,7 +198,7 @@ def main():
                 raise RuntimeError("The model emitted no visible answer tokens")
 
             print("Authenticated Console → Gateway → local Ollama: PASS")
-            print("Isolated namespace, single source [Q1]: PASS")
+            print("Isolated namespace, source [Q1] ranked first: PASS")
             print("SSE completed: PASS")
             print("Elapsed seconds:", round(elapsed, 2))
             print("Model answer:", answer.strip()[:1200])
