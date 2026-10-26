@@ -1,0 +1,64 @@
+name: Private AI Pipeline CI
+
+'on':
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit-and-docs:
+    name: Unit, UI and Compose (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned YAML test dependency
+        run: |
+          python -m pip install --only-binary=:all: PyYAML==6.0.2
+      - name: Install pinned PDF parser when present
+        if: hashFiles('gateway/pdf_extract.py') != ''
+        run: |
+          python -m pip install --only-binary=:all: pypdf==5.9.0
+      - name: Python syntax
+        run: |
+          python -m compileall -q gateway console tests scripts
+      - name: Python unit and integration contracts
+        run: |
+          python -m unittest discover -s tests -v
+      - name: JavaScript syntax and UI regressions
+        run: |
+          node --check console/static/app.js
+          node --check console/static/login.js
+          node tests/test_chat_history.cjs
+          if [ -f tests/test_p23_browser.cjs ]; then
+            node tests/test_p23_browser.cjs
+          fi
+      - name: Compose configuration (no deploy)
+        run: |
+          export PIPELINE_TOKEN="$(python -c 'import secrets;print(secrets.token_hex(32))')"
+          export WEBUI_SECRET_KEY="$(python -c 'import secrets;print(secrets.token_hex(32))')"
+          export KNOWLEDGE_TOKEN="$(python -c 'import secrets;print(secrets.token_hex(32))')"
+          export CONSOLE_PASSWORD_HASH="$(python -c 'import hashlib,secrets;p="ephemeral-test-password";s=secrets.token_bytes(16);print("scrypt:"+s.hex()+":"+hashlib.scrypt(p.encode(),salt=s,n=2**14,r=8,p=1,dklen=32).hex())')"
+          docker compose -f compose.yaml -f compose.console.yaml --profile console config --quiet
+      - name: Shell syntax
+        run: |
+          for script in scripts/*.sh; do
+            bash -n "$script"
+          done
+      - name: No local credentials or SQLite data committed
+        run: |
+          test ! -e .env
+          test ! -e gateway/memory.sqlite3

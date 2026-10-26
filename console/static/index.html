@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light"><meta name="description" content="Private AI Pipeline, lokale Verwaltung">
+<title>Private AI · Light Console</title><link rel="stylesheet" href="/styles.css"><script src="/app.js" defer></script></head>
+<body>
+<div class="layout">
+<aside class="rail" id="rail">
+<div class="logo"><span class="brand-icon">◆</span><span>private<span class="accent">ai</span><small>LIGHT CONSOLE</small></span></div>
+<div class="nav-title">ARBEITSPLATZ</div>
+<nav aria-label="Hauptnavigation">
+<button data-view="overview" class="active">▦ <span>Übersicht</span></button>
+<button data-view="chat">▤ <span>KI-Chat</span></button>
+<button data-view="knowledge">▣ <span>Wissen &amp; Gedächtnis</span></button>
+<button data-view="agents">⚙ <span>Agenten</span></button>
+<button data-view="system">▥ <span>System</span></button>
+</nav>
+<div class="rail-bottom"><span class="statusdot" aria-hidden="true"></span> Lokales Gateway <small>v0.5 P1/P2 · Beta · kein Offline-Nachweis</small></div>
+</aside>
+<div class="main">
+<header class="top"><button class="mobile" id="menu" aria-label="Navigation öffnen" aria-controls="rail" aria-expanded="false">☰</button><div class="crumb">PRIVATE AI <span>/</span> <strong id="crumb">Übersicht</strong></div><div class="top-right"><span class="project-context" title="Ein echter Projektwechsel erfordert noch Backend-Projektrechte">Einzelinstanz · kein Projektfilter</span><button id="quick" class="subtle" aria-keyshortcuts="Control+K Meta+K" title="Ansichten durchsuchen (Strg+K)">⌕ <span class="quick-label">Suche</span> <kbd>⌘K</kbd></button><span class="mode">Privates Netzwerk · nicht auditiert</span><button id="refresh" class="subtle">↻ <span class="refresh-label">Prüfen</span></button><button id="logout" class="subtle">Abmelden</button></div></header>
+<main id="main" tabindex="-1"></main>
+<footer>Light Console · Echte Daten nur aus dem lokalen Gateway · Keine Cloud-Fallbacks · Keine automatische Chat-Speicherung</footer>
+</div></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="mobile-scrim" id="scrim" hidden></div>
+<dialog id="palette" class="palette" aria-labelledby="palette-title"><div class="palette-head"><h2 id="palette-title">Ansicht öffnen</h2><button id="closePalette" class="subtle" type="button" aria-label="Suche schließen">✕</button></div><label class="sr" for="paletteQuery">Menü durchsuchen</label><input id="paletteQuery" autocomplete="off" placeholder="Ansicht suchen …"><div id="paletteResults" class="palette-results" role="list"></div><p class="hint">Diese Suche öffnet nur lokale Ansichten, keine Inhalte oder Dateien.</p></dialog>
+</body></html>

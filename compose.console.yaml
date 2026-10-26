@@ -1,0 +1,34 @@
+# Explicit opt-in: docker compose -f compose.yaml -f compose.console.yaml --profile console up -d --build
+# Isolated, authenticated, same-origin UI. Gateway token never reaches browser.
+services:
+  console:
+    profiles: [console]
+    build:
+      context: ./console
+    restart: unless-stopped
+    depends_on:
+      gateway: {condition: service_healthy}
+    ports:
+      - '127.0.0.1:${CONSOLE_PORT:-38881}:8085'
+    environment:
+      PIPELINE_TOKEN: ${PIPELINE_TOKEN:?Run scripts/init.sh first}
+      KNOWLEDGE_TOKEN: ${KNOWLEDGE_TOKEN:-}
+      KNOWLEDGE_IMPORT_ENABLED: ${KNOWLEDGE_IMPORT_ENABLED:-false}
+      CONSOLE_PASSWORD_HASH: ${CONSOLE_PASSWORD_HASH:?Run python3 console/set_password.py first}
+      CONSOLE_SECURE_COOKIE: ${CONSOLE_SECURE_COOKIE:-false}
+      GATEWAY_URL: http://gateway:8000
+    networks: [pipeline]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: ['/tmp:size=16m,noexec,nosuid']
+    pids_limit: 80
+    mem_limit: 128m
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8085/health',timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options: {max-size: '5m', max-file: '3'}

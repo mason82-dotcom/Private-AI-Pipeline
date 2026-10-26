@@ -1,0 +1,26 @@
+# Local credentials (keep the public example)
+.env
+.env.*
+!.env.example
+
+# Python/JS temporary files
+__pycache__/
+.pytest_cache/
+__pypackages__/
+*.pyc
+
+# Persistent runtime state
+*.sqlite
+*.sqlite3
+*.sqlite3-*
+*.sqlite*
+*.db
+*.db-*
+backups/
+state/
+documents/
+*.log
+
+# Local release archives
+*.zip
+*.tar.gz

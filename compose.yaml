@@ -1,0 +1,102 @@
+name: private-ai-pipeline
+
+# OFFLINE by default: on an internal bridge, webui and gateway cannot route to WAN.
+# For Ollama on another LAN machine add: -f compose.lan.yaml (explicit network egress).
+services:
+  gateway:
+    build:
+      context: ./gateway
+    restart: unless-stopped
+    environment:
+      PIPELINE_TOKEN: ${PIPELINE_TOKEN:?Run scripts/init.sh first}
+      KNOWLEDGE_TOKEN: ${KNOWLEDGE_TOKEN:-}
+      KNOWLEDGE_NAMESPACE: ${KNOWLEDGE_NAMESPACE:-personal}
+      KNOWLEDGE_IMPORT_ENABLED: ${KNOWLEDGE_IMPORT_ENABLED:-false}
+      OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
+      MEMORY_DB: /data/memory.sqlite3
+      MEMORY_INJECTION: ${MEMORY_INJECTION:-false}
+      WEBUI_MEMORY_NAMESPACE: ${WEBUI_MEMORY_NAMESPACE:-webui}
+      MEMORY_NAMESPACE: ${MCP_MEMORY_NAMESPACE:-personal}
+      MCP_READONLY: ${MCP_READONLY:-true}
+    volumes:
+      - memory_data:/data
+      - ./documents:/documents:ro
+    networks: [pipeline]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,noexec,nosuid
+    pids_limit: 100
+    mem_limit: 384m
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options: {max-size: '5m', max-file: '3'}
+
+  webui:
+    image: ${OPENWEBUI_IMAGE:-ghcr.io/open-webui/open-webui:slim}
+    restart: unless-stopped
+    depends_on:
+      gateway: {condition: service_healthy}
+    ports:
+      - '127.0.0.1:${WEBUI_PORT:-38880}:8080'
+    environment:
+      WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY:?Run scripts/init.sh first}
+      WEBUI_AUTH: 'true'
+      ENABLE_SIGNUP: ${ENABLE_SIGNUP:-true}
+      ENABLE_PERSISTENT_CONFIG: 'false'
+      ENABLE_OLLAMA_API: 'false'
+      ENABLE_OPENAI_API: 'true'
+      OPENAI_API_BASE_URL: http://gateway:8000/v1
+      OPENAI_API_KEY: ${PIPELINE_TOKEN:?Run scripts/init.sh first}
+      OFFLINE_MODE: 'true'
+      HF_HUB_OFFLINE: '1'
+      ENABLE_VERSION_UPDATE_CHECK: 'false'
+      ENABLE_WEB_SEARCH: 'false'
+      ENABLE_COMMUNITY_SHARING: 'false'
+      ENABLE_IMAGE_GENERATION: 'false'
+      ENABLE_DIRECT_CONNECTIONS: 'false'
+      ENABLE_OPENAI_API_PASSTHROUGH: 'false'
+      ENABLE_PIP_INSTALL_FRONTMATTER_REQUIREMENTS: 'false'
+      ENABLE_PASSWORD_VALIDATION: 'true'
+      ENABLE_DIRECT_INTEGRATIONS: 'false'
+    volumes:
+      - webui_data:/app/backend/data
+    networks: [pipeline]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 250
+    mem_limit: 1536m
+    logging:
+      driver: json-file
+      options: {max-size: '10m', max-file: '3'}
+
+  # Optional inference on the same Docker host. No published host port.
+  ollama:
+    image: ${OLLAMA_IMAGE:-ollama/ollama:latest}
+    profiles: [inference]
+    restart: unless-stopped
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+    volumes:
+      - ollama_data:/root/.ollama
+    networks: [pipeline]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 4096m
+    logging:
+      driver: json-file
+      options: {max-size: '5m', max-file: '3'}
+
+networks:
+  pipeline:
+    driver: bridge
+    internal: true
+
+volumes:
+  memory_data:
+  webui_data:
+  ollama_data:
