@@ -1,110 +1,104 @@
-# Private AI Pipeline — v0.5 (P1 + erste P2-Implementierung)
+# Private AI Pipeline
 
-**Neu:** getrennte Gateway-/Ollama-Diagnose mit Prüfzeitpunkt und Latenz; eigenständig authentifizierte, projektgebundene Wissens-API mit read-only Memory, optionale Textimporte und SHA-256-Deduplizierung. **50+ lokal simulierte HTTP-/Unit-Tests; echte Pi-/Docker-Abnahme weiterhin offen.**
+Lokale, datenschutzorientierte KI-Plattform für einen Raspberry Pi 5 (ARM64) und optional einen ausdrücklich freigegebenen Ollama-Rechner im privaten Netzwerk. **Kein automatischer Cloud-Fallback.**
 
-**Migration und Release-Gates:** [docs/V05_P1_P2.md](docs/V05_P1_P2.md). Für bestehende `.env`: `bash scripts/upgrade_env_p2.sh` vor dem Neustart ausführen. Für neue Installationen erzeugt `scripts/init.sh` zusätzlich den separaten Knowledge-Schlüssel. Der Import ist **standardmäßig aus** und muss bewusst aktiviert werden.
-
----
-
-# Private AI Pipeline v0.4-P0 — lokale KI und Light Console
-
-**Status 2026-10-25, UX-Ausbau P0/P1:** Konsolidierte Entwicklungsversion mit Open WebUI, lokalem Gateway, SQLite-FTS5-Gedächtnis, read-only MCP und einer **neu angebundenen Light Console**. Gateway- und Console-End-to-End-Tests wurden gegen einen **simulierten** Ollama-Server ausgeführt. **Keine** echte Pi-/Docker-/Windows-GPU-Abnahme. **Nicht** für öffentlich erreichbaren Betrieb oder unbeaufsichtigte Agenten freigegeben.
-
-Die Light Console enthält weiterhin vier echte read-mostly Funktionen: Login, Status, Modellliste und Modell-Streaming-Chat. Wissensbasis, Gedächtnis und Agenten zeigen ihren geplanten Status, haben **keine** HTTP-Schreib-APIs. Open WebUI ist weiterhin die separate Haupt-Chatoberfläche; es hat eine **eigene** Benutzerverwaltung und speichert den eigenen Chatverlauf unabhängig von der Console. Der Console-Chat ist ausschließlich flüchtig im aktuellen Browser-Tab (auch das Upstream-Gateway protokolliert nicht den Prompt). `MEMORY_INJECTION=false`, `MCP_READONLY=true` sind weiterhin Standard.
-
-## UX-Weiterentwicklung v0.4-P0 (neu)
-
-Das neue UI übernimmt das P0–P4-Konzept aus Canva: **fünf Hauptmodule** (Übersicht, Chat, Wissen & Gedächtnis, Agenten, System). Modelle, Netzwerk, Sicherungen und Einstellungen liegen als Tabs innerhalb von System; Dokumente und Erinnerungen als getrennte Tabs unter Wissen & Gedächtnis. Die globale Schnellnavigation (`Strg+K` bzw. `Cmd+K`) wechselt nur zwischen **Ansichten**, nicht zwischen vertraulichen Dokumenten. Desktop-Navigation, mobiler Drawer, Esc-Verhalten und Fokuszustände wurden erweitert. Status-Abfragen enthalten jetzt serverseitige UTC-Prüfzeitpunkte und Quellenkürzel.
-
-**Wichtig:** Die Topbar zeigt ausdrücklich „Einzelinstanz · kein Projektfilter“ statt eines nicht implementierten Projektwechsels. Es existiert noch keine projektbasierte Backend-RBAC. Wissen, Gedächtnis und Agenten zeigen deshalb ausschließlich das geplante Zielbild, ohne echte private Datensätze oder Schreibrechte. Nicht durch den Browser verifizierbar sind WAN-Isolation, Firewall, Backup-Restore und Pi-Ressourcen.
-
-Die 40 Python-Tests (davon 8 neue P0-Vertrags-/Integrationstests) laufen ohne echte Inferenzhardware; zusätzlich wurden die neue UI-Navigation und Mobilansicht in Chromium mit simulierten API-Antworten geprüft. Browser-E2E über lokale Ports konnte wegen Testumgebungsbeschränkung nicht durchgeführt werden. Details in `docs/V04_P0_UX.md`.
+**Implementierungsstand: v0.5 / P2.3 (Entwicklung, 26.10.2026). Kein produktiver v1.0-Release.** Ein erfolgreicher Merge nach `main` ist eine Quellcode-Integration, keine Freigabe des produktiven Pi-Stacks. Die zugehörigen Freigabekriterien stehen in [Sicherheit](docs/SECURITY.md) und [P2.3-Testnachweisen](docs/V05_P23_RAG_CHAT.md).
 
 ## Architektur
 
 ```text
-Browser -- 127.0.0.1:38881 --> Light Console (scrypt Login, Session, CSRF)
-                                      |
-                   ausschließlich internes Docker-Netz
-                                      v
-Browser -- 127.0.0.1:38880 --> Open WebUI ---+--> Gateway (Bearer Token)
-                                                   |        |
-                                                   |        +--> SQLite FTS5 / MCP stdio
-                                                   +--> Ollama (internes Docker-Netz
-                                                        oder ausdrücklich freigegebener LAN-PC)
+Browser
+  ├─ Open WebUI ───────────────┐
+  └─ Light Console (BFF) ─────┤ Authentifizierung / serverseitige Tokens
+                              ▼
+                    Private AI Gateway
+                      ├─ /v1/models, /v1/chat/completions, /v1/embeddings
+                      ├─ /private/knowledge (separates Knowledge-Token)
+                      ├─ SQLite FTS5 / projektspezifische Namespaces
+                      ├─ optionale lokale semantische Vektorsuche
+                      └─ Ollama, nur fest konfigurierter privater Endpunkt
+
+Separate CLI: lokales MCP stdio (standardmäßig nur lesen)
 ```
 
-Der Browser erhält **nie** den `PIPELINE_TOKEN`. Das Backend akzeptiert nur `GET /api/status`, `GET /api/models` und `POST /api/chat` sowie Session-Verwaltung. Es gibt keine API zum Löschen, Erstellen oder Ändern von Projektdateien. Die Gateway-Schnittstelle bleibt ausschließlich intern. Standard-Compose betreibt ein Docker-`internal`-Netz; `compose.lan.yaml` fügt auf ausdrücklichen Wunsch ein Egress-Netz hinzu, das **zusätzliche Host-Firewall-Regeln benötigt**. Dies allein ist **keine Air-Gap-Garantie**.
+Die Browser-Oberfläche erhält weder `PIPELINE_TOKEN` noch `KNOWLEDGE_TOKEN`. Für die Light Console sind Login (scrypt), Session-Cookies, CSRF-/Origin-Prüfung und SSE-Streaming implementiert. Open WebUI besitzt eine eigene Benutzerverwaltung und unabhängigen Chatverlauf. Console-Chats verbleiben im aktuellen Browser-Tab.
 
-## Installation der neuen Console (opt-in)
+## Funktionen und Grenzen
 
-Von v0.2 können Projektdateien zunächst **ohne Löschen der alten Docker-Volumes** durch v0.3 ersetzt werden. `.env` und persistente Docker-Volumes vor Änderungen sichern und die vorhandenen Ports/Dienste prüfen. Niemals `docker compose down -v` verwenden. Auf einem Pi mit bereits laufendem SkyHub-Next, Forgejo, Mosquitto und Tailscale nur nach geprüftem Vorflug-Audit starten.
+| Modul | Ist-Stand |
+| --- | --- |
+| Gateway und Modellinferenz | OpenAI-kompatible API zum lokalen Ollama, SSE, Modellliste, begrenzte Payloads |
+| Light Console | Anmeldung, Statusdiagnose, Modellwahl, Chat, Dokumentensuche und opt-in Import |
+| Gedächtnis | SQLite FTS5, Namensräume, Legacy-Migration, MCP stdio read-only als Standard |
+| P2.1 PDF | Textbasierte PDFs mit max. 1 MiB, 16 Seiten und 96 KiB extrahiertem Text, Seitenprovenienz |
+| P2.2 Semantik | Opt-in Embeddings (`nomic-embed-text` oder `bge-m3`), explizite CLI-Indizierung |
+| P2.3 RAG | Opt-in Chat mit bis zu drei Dokumentfundstellen, SSE `rag_sources`, Quellcodes `[Q1]` ff. |
+| Projektübergreifende Rechte | Nicht implementiert; **Single-Operator** und fester Knowledge-Namensraum |
+| Scans/OCR, Tabellenanalyse | Noch nicht implementiert |
+| Agenten-Schreibrechte | Nicht produktiv freigegeben |
+
+**Wichtig:** Quellenkennungen belegen nur, welche Textausschnitte abgerufen wurden. Sie garantieren weder die Richtigkeit noch die Belegbarkeit jedes Satzes der generierten Antwort. Dokumentinhalt ist als unvertrauenswürdig zu behandeln.
+
+## Sicherheitskonfiguration
+
+Sichere Standardwerte aus `.env.example`:
+
+```dotenv
+MEMORY_INJECTION=false
+MCP_READONLY=true
+KNOWLEDGE_IMPORT_ENABLED=false
+SEMANTIC_SEARCH_ENABLED=false
+RAG_ENABLED=false
+```
+
+- Standard-Compose nutzt ein internes Docker-Netz und veröffentlicht keinen Gateway-Port; WebUI und Console sollen nur über Loopback erreichbar sein.
+- `compose.lan.yaml` erlaubt bewusst einen zusätzlichen Netzwerkpfad. **Ohne Host-Firewall ist dies keine LAN-Allowlist und keine WAN-Isolation.**
+- Es gibt keinen automatischen Embedding-Download beim Import; die semantische Indizierung wird ausdrücklich per CLI gestartet.
+- Backup-Archive enthalten personenbezogene Daten und Konfigurationsschlüssel im Klartext. Sie sind bis zu einer gesicherten Off-Host-Verschlüsselung vertraulich zu behandeln.
+- Keine automatischen Agenten-Schreibfreigaben; kein Docker-Socket in KI-Containern.
+
+## Einrichtung (nur nach Host- und Backup-Prüfung)
 
 ```bash
-# Im entpackten Projektverzeichnis:
-./scripts/init.sh                     # vorhandene .env bleibt unverändert
-python3 console/set_password.py      # interaktive Eingabe; speichert nur scrypt-Prüfwert
+# In einem geprüften lokalen Checkout, keine fremden Volumes löschen:
+./scripts/init.sh
+python3 console/set_password.py
 ./scripts/preflight.sh
 
-# Bestehende v0.2-Dienste starten bzw. aktualisieren:
-docker compose up -d --build
-
-# Neue Console ausdrücklich zuschalten:
-docker compose -f compose.yaml -f compose.console.yaml \
-  --profile console up -d --build
-
-# Öffnen auf dem HOST: http://127.0.0.1:38881
-# Original Open WebUI:  http://127.0.0.1:38880
+# Vor dem Start: Konfiguration kontrollieren; erzeugt keine Container
+docker compose -f compose.yaml -f compose.console.yaml --profile console config
 ```
 
-**Das Beispiel funktioniert erst, wenn ein lokales Ollama bereits erreichbar ist und mindestens ein Modell geladen hat.** `OLLAMA_URL` ist standardmäßig `http://ollama:11434`, der containerinterne Ollama-Dienst wird aber nur über das optionale Compose-`inference`-Profil gestartet. Für einen externen Windows-/LAN-Rechner statt des obigen Starts eine passende `compose.lan.yaml`-Kombination verwenden und die Firewall auf Pi **und** Inferenzrechner auf explizite Adressen begrenzen. Die Windows-GPU GTX 1050 Ti wird hier nicht automatisch konfiguriert.
+Bei bestehenden Installationen vor einem Neustart `bash scripts/upgrade_env_p2.sh` durchführen und vorher `.env` sowie persistente Volumes sichern. **Nicht `docker compose down -v` verwenden.** Der produktive Pi kann bestehende lokale Bridge-/Loopback-Proxies benötigen; die Docker-Konfiguration allein beweist keine erfolgreiche Host-Portfreigabe.
 
-### LAN-Modus (nur wenn freigegeben)
+Erst nach separater Betriebsfreigabe Container starten:
 
 ```bash
-# Vorab OLLAMA_URL=<private IP> in .env, Host-Allowlist setzen und überprüfen!
-docker compose -f compose.yaml -f compose.lan.yaml \
-  -f compose.console.yaml --profile console up -d --build
+docker compose -f compose.yaml -f compose.console.yaml --profile console up -d --build
 ```
 
-**Sicherheit:** Die Console ist ausschließlich an `127.0.0.1:38881` gebunden; kein öffentlicher Zugriff. Ein späterer Tailscale-HTTPS-Proxy erfordert `CONSOLE_SECURE_COOKIE=true`, passende Trusted-Proxy-Konfiguration/Host-Freigaben und einen gesonderten Sicherheitstest. **Passwort nicht an eine HTTP-LAN-Adresse senden.** Anmeldung nutzt scrypt (gesalzener Prüfwert in `.env`), zeitlich begrenzte, rein speicherbasierte Session-Cookies (HttpOnly, SameSite=Strict), Token-/CSRF-Prüfung für schreibende Requests und Login-Rate-Limits. **Bestehende Open-WebUI-Konten authentifizieren NICHT automatisch die Console.**
+Ein externer LAN-Ollama-Host erfordert zusätzlich das geprüfte `compose.lan.yaml` und Host-Firewall-Regeln. Zugangsdaten nicht an Klartext-HTTP-Adressen außerhalb Loopback senden.
 
-Die Console authentifiziert nur einen Operator. **Keine Benutzer-/Projekt-RBAC-Implementierung** und keine Datenzugriffsrechte für andere Benutzer; bis zur Rechteprüfung nicht für Multi-User-Betrieb geeignet.
-
-## Tests
+## Tests und CI
 
 ```bash
 python3 -m unittest discover -s tests -v
 node --check console/static/app.js
 node --check console/static/login.js
-bash -n scripts/*.sh
-# Auf Docker-Host nach Konfiguration:
-docker compose -f compose.yaml -f compose.console.yaml \
-  --profile console config
+node tests/test_chat_history.cjs
+node tests/test_p23_browser.cjs
+for script in scripts/*.sh; do bash -n "$script"; done
 ```
 
-In den automatisierten Tests werden Start/Stop von drei temporären HTTP-Servern (Fake Ollama, echtes lokales Gateway und echte Console) eingesetzt. Überprüft werden Modellliste, echter SSE-Durchlauf (gegen Fake-Inferenz), Login, Cookie-Flags, CSRF, Cross-Origin-Verweigerung, Rate-Limit, Logout und kein Cloud-Fallback. **Das beweist nicht, dass ein realer Ollama-Server, Container-Image, ARM64-Host, Docker Compose oder Pi-Firewall korrekt funktionieren.**
+Der P2.3-Branch wurde auf dem Raspberry Pi mit **83 Python-Tests** und **23 DOM-Harness-Assertions** geprüft. Zusätzlich sind isolierte HTTP-, PDF- und lokale Ollama-/RAG-Smokes dokumentiert. Das DOM-Harness ist kein echter Browser; der Docker-HTTP-Test verwendet einen Modell-Simulator und beweist keinen Upstream-Inferenzabbruch.
 
-## Betrieb und Sicherungen
+Die GitHub-Actions-Workflowdatei `.github/workflows/ci.yml` prüft Python, JavaScript, Compose-Konfiguration und Shell auf x86_64 und ARM64. CI ersetzt weder die reale Pi-/Ollama-Hardwareabnahme noch Netz-/Restore-/Security-Tests.
 
-`./scripts/backup.sh` und `./scripts/restore.sh` decken die Open-WebUI- und Gateway-Daten ab, **nicht** separat das Console-Sitzungsinventar (das absichtlich nur im RAM existiert). Die Konfiguration `.env` einschließlich `CONSOLE_PASSWORD_HASH` wird durch das bestehende Backup mitgesichert. Test-Restore grundsätzlich auf getrennten Wegwerf-Volumes durchführen. Archive sind **unverschlüsselt und vertraulich**; nicht ungeschützt in Cloud, Git oder gemeinsame Ordner legen. Docker-Image-Digests sind noch nicht gepinnt.
+## Noch offene Freigabekriterien
 
-## Modulstand
+1. Egress-Allowlist am Host sowie unerwünschte DNS-/WAN-Verbindungen nachweislich blockieren.
+2. Backup und Restore ausschließlich auf separaten Wegwerf-Volumes reproduzierbar prüfen.
+3. Tatsächliche Beendigung der Upstream-Inferenz nach Client-Abbruch und Prompt-Injection-Härtung nachweisen.
+4. Supply-Chain-Digests, Ressourcen- und Browser-E2E-Abnahme sowie Hermes-/Codex-MCP-Integration abschließen.
 
-| Modul | Umsetzungsstand | Beleg |
-| --- | --- | --- |
-| Light Console Login/Session/CSRF | Implementiert | HTTP-Integrationstest |
-| Live-Status und Modellliste | Implementiert | Gateway/Ollama-Simulation |
-| Browser-Chat mit SSE | Implementiert | HTTP-SSE-End-to-End mit Fake Ollama |
-| Open WebUI | Compose vorbereitet | **Keine** reale Docker-Abnahme |
-| SQLite-Memory / Namensräume | Implementiert | Unit-/Migrations-Tests |
-| MCP stdio | Read-only implementiert | Unit-/Protokolltest, kein Hermes/Codex-E2E |
-| Dokumente/RAGFlow/OCR/Vektorsuche | Nicht implementiert | Roadmap |
-| Echte Pi-/GPU-/Netzwerk-/Restore-Abnahme | Offen | `docs/V03_ACCEPTANCE.md` |
-
-Siehe außerdem `docs/ROADMAP.md`, `docs/SECURITY.md`, `docs/V03_ACCEPTANCE.md`, `docs/PRODUCT_DESIGN.md`, `AGENTS.md` und den bewusst separaten visuellen UI-Prototyp `design/prototype/`.
-
-
-## Upgrade-Hinweis v0.3 → v0.4-P0
-
-Dies ist ein **UI-/Status-API-Upgrade** ohne Veränderung an SQLite-Schema oder persistierten Volumes. Vor einem Wechsel auf dem Pi: Backups anlegen, Portbelegung prüfen, `docker compose ... config` validieren, Console-Dienst aktualisieren, `/api/status` und `/api/models` mit Auth prüfen. Container-Instanzen nicht ohne Host-Abnahme starten. Das bisherige Chatverhalten und der separate Open-WebUI-Verlauf bleiben erhalten.
+Weitere Details: [Roadmap](docs/ROADMAP.md), [Sicherheitskonzept](docs/SECURITY.md), [P1/P2-Dokumentation](docs/V05_P1_P2.md), [P2.3-Abnahme](docs/V05_P23_RAG_CHAT.md), [GitHub-Issues](docs/GITHUB_TRACKING.md) und [Entwicklungsregeln](AGENTS.md).
