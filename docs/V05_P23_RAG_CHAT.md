@@ -1,6 +1,6 @@
 # P2.3 – Optionale lokale Chat-Antworten mit Dokumentquellen
 
-**Status: Draft / Entwicklung.** P2.3-Regression auf dem Raspberry Pi bestanden: 79 Python-Tests, JavaScript-Syntax und 11 Chat-/RAG-SSE-Fälle mit Exit-Code 0. Der isolierte Live-API-Smoke gegen echtes lokales `qwen3:0.6b` ist ebenfalls bestanden (28,35 s); Docker-/Browser-End-to-End-Abnahme und GitHub-CI stehen weiterhin aus. Keine Änderungen am produktiven Raspberry-Pi-Stack.
+**Status: Draft / Entwicklung.** P2.3-Regression auf dem Raspberry Pi bestanden: 79 Python-Tests, JavaScript-Syntax und 11 Chat-/RAG-SSE-Fälle mit Exit-Code 0. Isolierte Live-API-Smokes für FTS5-RAG (28,35 s) und semantischen RAG mit `nomic-embed-text` + `qwen3:0.6b` (3,73 s Index, 35,25 s API/Chat) bestanden. PDF-, Docker-/Browser-End-to-End-Abnahme und GitHub-CI stehen aus. Keine Änderungen am produktiven Raspberry-Pi-Stack.
 
 ## Funktionen
 
@@ -54,8 +54,9 @@ Die `test_p23_rag.py`-Tests verwenden ausschließlich Loopback mit simuliertem O
 - [x] Chat-Kontext- und RAG-SSE-JavaScript-Regression: 11/11 bestanden; JavaScript-Syntaxcheck Exit-Code 0 (26.10.2026, Nutzerprotokoll)
 - [ ] CI-Lauf auf GitHub bestätigt
 - [ ] Echtes mehrseitiges PDF mit Seitenangabe in Chat geprüft
-- [x] Simulierte semantische RAG-Suche auf Code-Ebene ergänzt (Realtest ausstehend)
-- [ ] Semantische RAG-Suche mit echtem Modell (Indizierungsdauer, Latenz, Speicher, Ausfallverhalten)
+- [x] Simulierte und reale semantische RAG-Suche auf dem Pi bestanden
+- [x] Semantische RAG-Suche mit echten lokalen Modellen; 2/2 Vektoren, korrektes Ranking, [Q1] zitiert; gemessene Index-/Gesamtdauer
+- [ ] Speicherlast und Ausfall-/Abbruchverhalten bei semantischen RAG-Anfragen separat prüfen
 - [x] Isolierter Live-API-Smoke: Authentifizierung, serverfestes Scope, SSE-Quellen und lokale Ollama-Antwort mit `[Q1]` geprüft
 - [ ] Vollständige Docker-/Browser-End-to-End-Abnahme einschließlich CSP und Stream-Abbruch geprüft
 - [ ] Manuelle Review: Prompt-Injection, Quellenidentität, Egress und Last
@@ -109,7 +110,7 @@ Der Test ist ein echter lokaler **API-Smoketest**, keine produktive Bereitstellu
 
 Weiter offen: semantischer RAG-Pfad mit echtem Embedding-Modell, mehrseitiges echtes Text-PDF mit Seitenprovenienz, Docker/Browser UI, Stream-Abbruch und CI. Kein Merge und keine Produktionsfreigabe.
 
-## Semantischer Live-RAG-Smoke (neu; noch nicht auf Pi bestätigt)
+## Semantischer Live-RAG-Smoke (auf Pi bestätigt)
 
 Dieser Modus erweitert den **bereits erfolgreich getesteten** FTS-Live-Smoke. Er indiziert **genau zwei temporäre Testchunks** (Hydraulik und Apfelkuchen) mit dem lokalen `nomic-embed-text:latest` und verwendet die vorhandene Console-/Gateway-/Ollama-Kette im semantischen Modus. Die semantische Abfrage muss die passende Hydraulikquelle vor dem themenfremden Apfelkuchen ranken. Der Index liegt ausschließlich in der temporären SQLite-Datei. Es werden keine produktiven Dokumente importiert, kein Docker-Service verändert, keine Cloud-Abfragen gestellt und **keine Modelle heruntergeladen**.
 
@@ -158,3 +159,16 @@ Die Ausgabe enthält **Indizierungsdauer** und **Gesamtdauer von Wissensabfrage 
 Exit-Code `3` bedeutet, dass die Quellenmarkierung in der Modellantwort fehlt (fachliches Qualitätsgate), `2` ein fehlendes lokal installiertes Modell und `1` einen anderen Testfehler. Der isolierte FTS-Test bleibt rückwärtskompatibel: ohne `--mode` wird weiterhin `fts` verwendet.
 
 > Diese Änderungen wurden auf GitHub veröffentlicht, sind aber weder auf echter Pi-Hardware noch im produktiven Docker-Stack freigegeben. Zuerst Testprotokoll bewerten, anschließend separates Docker-/Browser-/PDF-Gate.
+
+## Semantische Live-Abnahme vom 26.10.2026
+
+Durchgeführt auf dem Raspberry Pi 5 mit `scripts/pi-p23-rag-live-smoke.py --mode semantic --model qwen3:0.6b --embed-model nomic-embed-text:latest`:
+
+- Exit-Code **0**, `P2.3 SEMANTIC RAG API SMOKE: PASS`.
+- Temporärer semantischer Index **2/2 Chunks**, **3,73 Sekunden**.
+- Ranking **Hydraulik [Q1] vor Apfelkuchen [Q2]**, PASS.
+- Authentifizierte Console → Gateway → Ollama, serverfestes Namespace-Scope, SSE-Abschluss, Modell-Zitierung `[Q1]`: PASS.
+- Vollständige semantische Abfrage + Chatantwort **35,25 Sekunden**; nicht direkt mit FTS5-Latenz gleichzusetzen (Kalt-/Warmzustand und Last nicht kontrolliert).
+- Antwort: `Die Hydraulikpumpe des Baggers erstellt Öldruck, welches mit den Hydraulikzylinder zum Bewegen des Auslegeres eingesetzt wird. [Q1]`.
+- Fachlich im Kern richtig, sprachlich unpräzise. Zitationsmarker bestätigt **keine faktische Verifikation** der einzelnen Formulierungen.
+- Noch nicht nachgewiesen: tatsächliche PDF-Textextraktion mit Seitenzahl im Live-Chat, Produktions-Docker-/Browserpfad, CI, Belastung und Prompt-Injection-Härtung.
