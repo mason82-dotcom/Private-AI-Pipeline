@@ -1,4 +1,4 @@
-"""Cheap offline structural regression checks for the release contract."""
+"""Offline structural contracts for the active development baseline."""
 import pathlib
 import unittest
 
@@ -13,10 +13,14 @@ class ReleaseContractTests(unittest.TestCase):
 
     def test_readme_states_actual_version_and_known_limits(self):
         text = (ROOT / 'README.md').read_text(encoding='utf8')
-        self.assertIn('v0.3', text)
+        self.assertIn('v0.5', text)
+        self.assertIn('P2.3', text)
         self.assertIn('nicht', text.lower())
         self.assertIn('Light Console', text)
         self.assertIn('MCP_READONLY=true', text)
+        self.assertIn('RAG_ENABLED=false', text)
+        self.assertIn('KNOWLEDGE_IMPORT_ENABLED=false', text)
+        self.assertIn('keine WAN-Isolation', text)
 
     def test_compose_does_not_publish_gateway_or_enable_passthrough(self):
         text = (ROOT / 'compose.yaml').read_text()
