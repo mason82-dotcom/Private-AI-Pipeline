@@ -54,7 +54,8 @@ Die `test_p23_rag.py`-Tests verwenden ausschließlich Loopback mit simuliertem O
 - [x] Chat-Kontext- und RAG-SSE-JavaScript-Regression: 11/11 bestanden; JavaScript-Syntaxcheck Exit-Code 0 (26.10.2026, Nutzerprotokoll)
 - [ ] CI-Lauf auf GitHub bestätigt
 - [ ] Echtes mehrseitiges PDF mit Seitenangabe in Chat geprüft
-- [ ] Semantische RAG-Suche mit echtem Modell (Latenz, Speicher, Ausfallverhalten)
+- [x] Simulierte semantische RAG-Suche auf Code-Ebene ergänzt (Realtest ausstehend)
+- [ ] Semantische RAG-Suche mit echtem Modell (Indizierungsdauer, Latenz, Speicher, Ausfallverhalten)
 - [x] Isolierter Live-API-Smoke: Authentifizierung, serverfestes Scope, SSE-Quellen und lokale Ollama-Antwort mit `[Q1]` geprüft
 - [ ] Vollständige Docker-/Browser-End-to-End-Abnahme einschließlich CSP und Stream-Abbruch geprüft
 - [ ] Manuelle Review: Prompt-Injection, Quellenidentität, Egress und Last
@@ -107,3 +108,52 @@ Der Test ist ein echter lokaler **API-Smoketest**, keine produktive Bereitstellu
 - Qualitätshinweis: Die Modellantwort nannte fälschlich/ungenau eine direkte Bewegung der Zylinder durch die Hydraulikpumpe und vermischte die Erklärung mit irrelevanten Testtextbestandteilen. Die Quelle beschreibt technisch präziser: Die Pumpe **erzeugt Öldruck**; dieser bewegt über die Hydraulikzylinder den Ausleger. Daher **Transport-/Zitationsabnahme bestanden, fachliche Antwortqualität nur eingeschränkt bestätigt**. Eine vorhandene Zitiermarkierung validiert den Antwortinhalt nicht.
 
 Weiter offen: semantischer RAG-Pfad mit echtem Embedding-Modell, mehrseitiges echtes Text-PDF mit Seitenprovenienz, Docker/Browser UI, Stream-Abbruch und CI. Kein Merge und keine Produktionsfreigabe.
+
+## Semantischer Live-RAG-Smoke (neu; noch nicht auf Pi bestätigt)
+
+Dieser Modus erweitert den **bereits erfolgreich getesteten** FTS-Live-Smoke. Er indiziert **genau einen temporären Testchunk** mit dem lokalen `nomic-embed-text:latest` und verwendet die vorhandene Console-/Gateway-/Ollama-Kette im semantischen Modus. Der Index liegt ausschließlich in der temporären SQLite-Datei. Es werden keine produktiven Dokumente importiert, kein Docker-Service verändert, keine Cloud-Abfragen gestellt und **keine Modelle heruntergeladen**.
+
+Prüfe zunächst Ressourcen und installierte Modelle:
+
+```bash
+free -h
+ollama ps
+ollama list | grep -E '^(nomic-embed-text|qwen3:0.6b)'
+```
+
+Führe danach den aktualisierten Branch und zunächst die gezielten Simulationen aus:
+
+```bash
+cd ~/Projekte/Private-AI-Pipeline-P2-Dev
+git pull --ff-only origin feature/p2-rag-chat-citations
+.venv/bin/python -m unittest discover -s tests -p 'test_p23_rag.py' -v
+.venv/bin/python -m py_compile scripts/pi-p23-rag-live-smoke.py
+```
+
+Echter lokaler Embedding- und RAG-Test (vorhandenes `qwen3:0.6b` und `nomic-embed-text:latest` vorausgesetzt):
+
+```bash
+.venv/bin/python scripts/pi-p23-rag-live-smoke.py \
+  --mode semantic \
+  --model qwen3:0.6b \
+  --embed-model nomic-embed-text:latest \
+  > /tmp/p23-semantic-rag-live.log 2>&1
+rc=$?
+echo "Exit-Code: $rc"
+tail -45 /tmp/p23-semantic-rag-live.log
+```
+
+Erwartete Prüfmarker bei Erfolg:
+
+- `Semantic index: PASS (1/1 test chunk)`
+- `Authenticated Console → Gateway → local Ollama: PASS`
+- `Isolated namespace, single source [Q1]: PASS`
+- `SSE completed: PASS`
+- `Model used [Q1] in answer: YES`
+- `P2.3 SEMANTIC RAG API SMOKE: PASS`
+
+Die Ausgabe enthält **Indizierungsdauer** und **Gesamtdauer von Wissensabfrage bis gestreamter Chat-Antwort**. RAM/Swap werden dabei nicht dauerhaft mitgeschnitten; beobachte sie bei Bedarf separat. Das Embedding-Modell kann nach der Indizierung noch im Ollama-Speicher verbleiben; die Operationen laufen **sequenziell**, sind aber nicht zwingend speicherexklusiv. Die Qualität der generierten Erklärung muss anhand des tatsächlichen Texts überprüft werden.
+
+Exit-Code `3` bedeutet, dass die Quellenmarkierung in der Modellantwort fehlt (fachliches Qualitätsgate), `2` ein fehlendes lokal installiertes Modell und `1` einen anderen Testfehler. Der isolierte FTS-Test bleibt rückwärtskompatibel: ohne `--mode` wird weiterhin `fts` verwendet.
+
+> Diese Änderungen wurden auf GitHub veröffentlicht, sind aber weder auf echter Pi-Hardware noch im produktiven Docker-Stack freigegeben. Zuerst Testprotokoll bewerten, anschließend separates Docker-/Browser-/PDF-Gate.
