@@ -1,6 +1,6 @@
 # P2.3 – Optionale lokale Chat-Antworten mit Dokumentquellen
 
-**Status: Draft / Entwicklung.** Gesamte P2.3-Regression auf dem Raspberry Pi bestanden: 79 Python-Tests, JavaScript-Syntax und 11 Chat-/RAG-SSE-Fälle mit Exit-Code 0. Echte LLM-RAG-/Docker-/Browser-End-to-End-Abnahme und GitHub-CI stehen weiterhin aus. Keine Änderungen am produktiven Raspberry-Pi-Stack.
+**Status: Draft / Entwicklung.** P2.3-Regression auf dem Raspberry Pi bestanden: 79 Python-Tests, JavaScript-Syntax und 11 Chat-/RAG-SSE-Fälle mit Exit-Code 0. Der isolierte Live-API-Smoke gegen echtes lokales `qwen3:0.6b` ist ebenfalls bestanden (28,35 s); Docker-/Browser-End-to-End-Abnahme und GitHub-CI stehen weiterhin aus. Keine Änderungen am produktiven Raspberry-Pi-Stack.
 
 ## Funktionen
 
@@ -55,7 +55,8 @@ Die `test_p23_rag.py`-Tests verwenden ausschließlich Loopback mit simuliertem O
 - [ ] CI-Lauf auf GitHub bestätigt
 - [ ] Echtes mehrseitiges PDF mit Seitenangabe in Chat geprüft
 - [ ] Semantische RAG-Suche mit echtem Modell (Latenz, Speicher, Ausfallverhalten)
-- [ ] End-to-End-Authentifizierung, CSP, UI und Stream-Abbruch geprüft
+- [x] Isolierter Live-API-Smoke: Authentifizierung, serverfestes Scope, SSE-Quellen und lokale Ollama-Antwort mit `[Q1]` geprüft
+- [ ] Vollständige Docker-/Browser-End-to-End-Abnahme einschließlich CSP und Stream-Abbruch geprüft
 - [ ] Manuelle Review: Prompt-Injection, Quellenidentität, Egress und Last
 - [ ] Vorgelagerte P2.1 und P2.2 PRs gemergt
 
@@ -70,7 +71,7 @@ Die `test_p23_rag.py`-Tests verwenden ausschließlich Loopback mit simuliertem O
 - Unversionierte lokale Dateien `.agents/` und `skills-lock.json` wurden gemeldet. Diese nicht automatisch löschen, überschreiben oder committen.
 - Keine realen RAG-Antworten des Ollama-Chatmodells, keine Container-/Browserabnahme und kein Produktiv-Deploy nachgewiesen.
 
-## P2.3 isolierter Live-API-Smoke mit echtem lokalem Ollama (noch auszuführen)
+## P2.3 isolierter Live-API-Smoke mit echtem lokalem Ollama (bestanden)
 
 Der neue Test `scripts/pi-p23-rag-live-smoke.py` startet **nur zwei temporäre Python-HTTP-Server auf zufälligen 127.0.0.1-Ports** (Gateway und Light Console), verwendet eine SQLite-Datenbank in `tempfile.TemporaryDirectory`, erstellt nur Testdokumente und zufällige In-Memory-Schlüssel und verbindet sich mit dem **bereits laufenden lokalen** Ollama `127.0.0.1:11434`. Er nutzt ausschließlich die FTS5-Dokumentensuche, kein zusätzliches Embedding-Modell und keinen Docker-Container.
 
@@ -91,3 +92,18 @@ echo "Live-Smoke Exit-Code: $rc"
 Exit-Code **0**: Transport, geschützter Login/CSRF, scoping, SSE-Quelle und Modellzitat `[Q1]` nachgewiesen. **3**: Modell hat Text geliefert, aber `[Q1]` nicht in der Antwort verwendet; dies ist ein begrenzter Modell-Qualitätsbefund, kein Beweis für einen defekten API-Transport. **2**: gewähltes Chatmodell ist nicht lokal installiert. **1**: anderer Fehler; Protokoll prüfen.
 
 Der Test ist ein echter lokaler **API-Smoketest**, keine produktive Bereitstellung, keine Docker-Abnahme und kein vollständiger Browser-UI-Test. Eine positive Quelle in SSE belegt außerdem noch nicht die Richtigkeit aller generierten Aussagen.
+
+## Live-Abnahmenachweis vom 26.10.2026
+
+**Lauf:** `scripts/pi-p23-rag-live-smoke.py --model qwen3:0.6b` auf dem Raspberry Pi 5.
+
+- Exit-Code: **0**, `P2.3 LIVE RAG API SMOKE: PASS`.
+- Modell vor Start bereits installiert: `qwen3:0.6b`.
+- Verwendet: temporäre SQLite-Datenbank, serverfester Namensraum und zwei isolierte Loopback-HTTP-Server; keine Docker-Neustarts oder produktiven Datensätze.
+- Login/CSRF → Console → Gateway → lokales Ollama: **PASS**.
+- Scope-Prüfung, genau eine abgerufene Quelle `[Q1]`, SSE-Abschluss: **PASS**.
+- Gemessene Laufzeit: **28,35 Sekunden**, einschließlich Modellantwort (kein isolierter P50/P95-Latenzwert).
+- Modellantwort enthielt `[Q1]`: **YES**.
+- Qualitätshinweis: Die Modellantwort nannte fälschlich/ungenau eine direkte Bewegung der Zylinder durch die Hydraulikpumpe und vermischte die Erklärung mit irrelevanten Testtextbestandteilen. Die Quelle beschreibt technisch präziser: Die Pumpe **erzeugt Öldruck**; dieser bewegt über die Hydraulikzylinder den Ausleger. Daher **Transport-/Zitationsabnahme bestanden, fachliche Antwortqualität nur eingeschränkt bestätigt**. Eine vorhandene Zitiermarkierung validiert den Antwortinhalt nicht.
+
+Weiter offen: semantischer RAG-Pfad mit echtem Embedding-Modell, mehrseitiges echtes Text-PDF mit Seitenprovenienz, Docker/Browser UI, Stream-Abbruch und CI. Kein Merge und keine Produktionsfreigabe.
