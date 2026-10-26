@@ -1,6 +1,6 @@
 # P2.3 – Optionale lokale Chat-Antworten mit Dokumentquellen
 
-**Status: Draft / Entwicklung.** Der Code ist im separaten Branch implementiert; die neue P2.3-Regression und die echte Pi-/Docker-Abnahme sind noch nicht bestätigt. Keine Änderung am produktiven Raspberry-Pi-Stack.
+**Status: Draft / Entwicklung.** Neue P2.3-Python-Regression und JavaScript-RAG-SSE-Regressionsprüfungen wurden auf dem Raspberry Pi bestanden; echte Pi-/Docker-/LLM-RAG-End-to-End-Abnahme und GitHub-CI sind noch nicht bestätigt. Keine Änderung am produktiven Raspberry-Pi-Stack.
 
 ## Funktionen
 
@@ -50,8 +50,8 @@ Die `test_p23_rag.py`-Tests verwenden ausschließlich Loopback mit simuliertem O
 
 ## Release-Gates
 
-- [ ] Neuer Pi-Python-Gesamtlauf inklusive P2.3 grün
-- [ ] JS-Syntax und Chat-Historie unverändert grün
+- [x] Pi-Python-Gesamtlauf inklusive P2.3: 71 Tests in 47,227 Sekunden, Ergebnis OK (26.10.2026, Nutzerprotokoll)
+- [x] Chat-Kontext- und RAG-SSE-JavaScript-Regression: 11 Fälle erfolgreich; JavaScript-Syntaxcheck ohne gemeldeten Fehler (26.10.2026, Nutzerprotokoll)
 - [ ] CI-Lauf auf GitHub bestätigt
 - [ ] Echtes mehrseitiges PDF mit Seitenangabe in Chat geprüft
 - [ ] Semantische RAG-Suche mit echtem Modell (Latenz, Speicher, Ausfallverhalten)
@@ -60,3 +60,11 @@ Die `test_p23_rag.py`-Tests verwenden ausschließlich Loopback mit simuliertem O
 - [ ] Vorgelagerte P2.1 und P2.2 PRs gemergt
 
 **Kein automatischer Deploy oder Merge.**
+
+## Pi-Testnachweis vom 26.10.2026
+
+- Python: `Ran 71 tests in 47.227s` / `OK`.
+- JavaScript: `Chat context and RAG SSE regression tests OK (11 cases)`.
+- Checkout-Meldung bei der Abnahme: `feature/p2-rag-chat-citations...origin/feature/p2-rag-chat-citations [behind 5]`. Das Prüfprotokoll belegt somit nicht automatisch einen Test des jüngsten Remote-Commits. Nach dem Fast-Forward einen erneuten Gesamtlauf durchführen.
+- Unversionierte lokale Dateien `.agents/` und `skills-lock.json` wurden gemeldet. Diese nicht automatisch löschen, überschreiben oder committen.
+- Keine realen RAG-Antworten des Ollama-Chatmodells, keine Container-/Browserabnahme und kein Produktiv-Deploy nachgewiesen.
