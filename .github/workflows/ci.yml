@@ -1,31 +1,50 @@
-name: Verify (offline, no network in code)
-on:
+name: Private AI Pipeline CI
+
+'on':
   push:
   pull_request:
   workflow_dispatch:
+
 permissions:
   contents: read
+
 jobs:
   unit-and-docs:
+    name: Python, JavaScript and shell regressions
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - name: Python checks
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned PDF parser when present
+        if: hashFiles('gateway/pdf_extract.py') != ''
         run: |
-          python -m compileall -q gateway console tests
+          python -m pip install --only-binary=:all: pypdf==5.9.0
+      - name: Python syntax
+        run: |
+          python -m compileall -q gateway console tests scripts
+      - name: Python unit and integration contracts
+        run: |
           python -m unittest discover -s tests -v
-      - name: JavaScript syntax
+      - name: JavaScript syntax and UI regressions
         run: |
           node --check console/static/app.js
           node --check console/static/login.js
           node tests/test_chat_history.cjs
+          if [ -f tests/test_p23_browser.cjs ]; then
+            node tests/test_p23_browser.cjs
+          fi
       - name: Shell syntax
         run: |
-          for script in scripts/*.sh; do bash -n "$script"; done
-      - name: Never publish credentials
+          for script in scripts/*.sh; do
+            bash -n "$script"
+          done
+      - name: No local credentials or SQLite data committed
         run: |
           test ! -e .env
           test ! -e gateway/memory.sqlite3
