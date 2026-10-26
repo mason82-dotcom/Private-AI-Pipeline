@@ -292,11 +292,11 @@ class Handler(BaseHTTPRequestHandler):
             return
         self.json_response(404, {'error': 'Route nicht vorhanden'})
 
-    def knowledge_upstream(self,method,endpoint,body=None):
+    def knowledge_upstream(self,method,endpoint,body=None,timeout=8):
         request=urllib.request.Request(self.server.gateway_url+endpoint,data=body,
             headers={'Authorization':'Bearer '+self.server.knowledge_token,
                      'Content-Type':'application/json','Accept':'application/json'}, method=method)
-        return OPENER.open(request,timeout=8)
+        return OPENER.open(request,timeout=timeout)
 
     def do_POST(self):
         if not self.valid_origin():
@@ -418,7 +418,7 @@ class Handler(BaseHTTPRequestHandler):
                 # Retrieval is sequential and bounded, before starting LLM inference.
                 query=urllib.parse.urlencode({'kind':'semantic' if rag_mode=='semantic' else 'search',
                                                'q':question[:200]})
-                with self.knowledge_upstream('GET','/private/knowledge?'+query) as response:
+                with self.knowledge_upstream('GET','/private/knowledge?'+query,timeout=65 if rag_mode=='semantic' else 8) as response:
                     result=response.read(128*1024+1)
                 if len(result)>128*1024: raise ValueError('Suchergebnis zu groß')
                 clean,sources=build_rag_messages(clean,json.loads(result))
