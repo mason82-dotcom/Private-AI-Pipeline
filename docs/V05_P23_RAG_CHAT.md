@@ -236,3 +236,30 @@ bash scripts/pi-p23-console-image-check.sh
 Vor optionalem Build `docker image inspect python:3.13-slim` zur Sichtprüfung. Bitte **kein** `docker compose up`, `down`, `restart`, `pull` oder Test-Deployment gegen das produktive Compose-Projekt ausführen. Der Test schreibt lediglich lokale Logdateien/temporäre Testdaten und beim optionalen Build ein separates QA-Image. Die unversionierten Dateien `.agents/` und `skills-lock.json` bleiben unberührt.
 
 **Offen trotz dieser Tests:** echter Browser mit DOM/CSP unter HTTP, realer mobiler UI-Test, produktionsferner Containerverbund mit eigener Netzwerk-/Volume-Isolation, nachweisbarer Stream-Abbruch im echten Proxy-Pfad und Security-Review. Dieses Gate ist also zunächst eine **Vorauswahl**, nicht die endgültige UI-/Docker-Freigabe.
+
+## Isolierter Docker-HTTP-Test mit vorhandenen QA-Images (neu, Pi-Lauf ausstehend)
+
+Der gemeldete Gateway-QA-Image-Abgleich ergab sechs von sechs identische Dateien. Das aktualisierte Console-Image private-ai-p23-console:qa-current bestand den isolierten Laufzeittest und sein server.py-Hash stimmt mit dem Checkout überein. Das ältere Console-Image :qa wurde bei server.py als veraltet erkannt.
+
+Der neue Test scripts/pi-p23-docker-http-smoke.sh verwendet ausschließlich vorhandene lokale Images, ein neu erzeugtes internes Bridge-Netz und drei kurzlebige Container (Offline-Ollama-Simulator, Gateway und Console). Das Gateway speichert Testdaten ausschließlich auf /data-tmpfs. Es werden **keine produktiven Docker-Container, Volumes, .env-Dateien, Netzwerke, Host-Portfreigaben, Builds, Pulls oder Downloads** verwendet. Ein Exit-Trap entfernt die eigenen QA-Container und das eigene Testnetzwerk.
+
+Er überprüft HTTP-Login, Session und RAG-Konfiguration; CSP und Security-Header; authentifizierten Import mit CSRF- und Origin-Prüfung; serverfestes Namespace-Scoping; containerübergreifendes RAG-SSE einschließlich Quelle [Q1] und Stream-Ende; normalen Chat ohne RAG; sowie Client-Verbindungsabbruch während eines Streams und anschließende Erreichbarkeit des Console-Servers.
+
+**Abbruch-Grenze:** Der Test bestätigt den Client-Disconnect und die weitere HTTP-Erreichbarkeit, aber nicht die tatsächliche Beendigung aller Upstream-Inferenzarbeiten. Ein echter Browser-/CSP-UI-Test und die reale lokale Ollama-Inferenz in Docker bleiben getrennte Gates.
+
+### Pi-Ausführung
+
+~~~bash
+cd ~/Projekte/Private-AI-Pipeline-P2-Dev
+git pull --ff-only origin feature/p2-rag-chat-citations
+bash -n scripts/pi-p23-docker-http-smoke.sh
+.venv/bin/python -m py_compile scripts/pi-p23-docker-ollama-mock.py scripts/pi-p23-docker-http-client.py
+bash scripts/pi-p23-docker-http-smoke.sh > /tmp/p23-docker-http-smoke.log 2>&1
+rc=$?
+echo "Exit-Code: $rc"
+tail -35 /tmp/p23-docker-http-smoke.log
+~~~
+
+Erwartete Marker bei Exit-Code 0: Console HTTP login/CSP/RAG config PASS; Authenticated import/CSRF/Origin/fixed namespace PASS; Container-to-container RAG SSE [Q1] PASS; Non-RAG chat PASS; Client disconnect during SSE and Console remains responsive PASS; P2.3 ISOLATED DOCKER HTTP SMOKE: PASS; QA cleanup finished.
+
+**Stand:** Dateien ins GitHub-Repository übernommen; der neue Docker-HTTP-Lauf wurde noch nicht auf dem Pi ausgeführt. PR bleibt Draft; kein Produktivdeploy oder Merge.
