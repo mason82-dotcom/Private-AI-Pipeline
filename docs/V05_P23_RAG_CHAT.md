@@ -111,7 +111,7 @@ Weiter offen: semantischer RAG-Pfad mit echtem Embedding-Modell, mehrseitiges ec
 
 ## Semantischer Live-RAG-Smoke (neu; noch nicht auf Pi bestätigt)
 
-Dieser Modus erweitert den **bereits erfolgreich getesteten** FTS-Live-Smoke. Er indiziert **genau einen temporären Testchunk** mit dem lokalen `nomic-embed-text:latest` und verwendet die vorhandene Console-/Gateway-/Ollama-Kette im semantischen Modus. Der Index liegt ausschließlich in der temporären SQLite-Datei. Es werden keine produktiven Dokumente importiert, kein Docker-Service verändert, keine Cloud-Abfragen gestellt und **keine Modelle heruntergeladen**.
+Dieser Modus erweitert den **bereits erfolgreich getesteten** FTS-Live-Smoke. Er indiziert **genau zwei temporäre Testchunks** (Hydraulik und Apfelkuchen) mit dem lokalen `nomic-embed-text:latest` und verwendet die vorhandene Console-/Gateway-/Ollama-Kette im semantischen Modus. Die semantische Abfrage muss die passende Hydraulikquelle vor dem themenfremden Apfelkuchen ranken. Der Index liegt ausschließlich in der temporären SQLite-Datei. Es werden keine produktiven Dokumente importiert, kein Docker-Service verändert, keine Cloud-Abfragen gestellt und **keine Modelle heruntergeladen**.
 
 Prüfe zunächst Ressourcen und installierte Modelle:
 
@@ -145,9 +145,10 @@ tail -45 /tmp/p23-semantic-rag-live.log
 
 Erwartete Prüfmarker bei Erfolg:
 
-- `Semantic index: PASS (1/1 test chunk)`
+- `Semantic index: PASS (2/2 test chunks)`
+- `Semantic ranking: Hydraulik [Q1] before Apfelkuchen [Q2]: PASS`
 - `Authenticated Console → Gateway → local Ollama: PASS`
-- `Isolated namespace, single source [Q1]: PASS`
+- `Isolated namespace, source [Q1] ranked first: PASS`
 - `SSE completed: PASS`
 - `Model used [Q1] in answer: YES`
 - `P2.3 SEMANTIC RAG API SMOKE: PASS`
