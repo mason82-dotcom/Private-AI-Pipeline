@@ -1,5 +1,7 @@
 """P2.3 opt-in RAG regression: scope, permission, and SSE provenance (offline)."""
+import base64
 import http.cookiejar
+import importlib.util
 import json
 from pathlib import Path
 import sys
@@ -202,6 +204,21 @@ class TestRAG(unittest.TestCase):
         self.assertIn('handbuch.pdf',raw)
         self.assertIn('"page": 3',raw)
         self.assertNotIn('geheim.txt',raw)
+
+    def test_real_three_page_pdf_generation_and_text_worker(self):
+        # The live PDF smoke constructs an actual text-layer PDF in RAM.
+        from pdf_ingest import parse_base64_pdf
+        path=ROOT/'scripts'/'pi-p23-pdf-live-smoke.py'
+        spec=importlib.util.spec_from_file_location('p23_pdf_live_smoke',path)
+        script=importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(script)
+        content=script.make_pdf()
+        binary,pages=parse_base64_pdf(base64.b64encode(content).decode('ascii'))
+        self.assertEqual(binary,content)
+        self.assertEqual([p['page'] for p in pages],[1,2,3])
+        self.assertNotIn('Hydraulikpumpe',pages[0]['text'])
+        self.assertIn('Hydraulikpumpe',pages[1]['text'])
+        self.assertNotIn('Hydraulikpumpe',pages[2]['text'])
 
     def test_pdf_page_citation_builder(self):
         msg=[{'role':'user','content':'Was steht auf Seite 3?'}]
