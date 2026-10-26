@@ -52,7 +52,13 @@ if ! "$do_build"; then
   exit 0
 fi
 
-# Build from local Docker cache; never start a production service.
+# Verify the base image is cached first, so the optional build cannot pull it.
+# This deliberately fails if the host has not previously cached python:3.13-slim.
+if ! docker image inspect python:3.13-slim >/dev/null 2>&1; then
+  echo 'ABBRUCH: python:3.13-slim nicht lokal im Docker-Cache; kein Download erlaubt.' >&2
+  exit 2
+fi
+# Build an isolated QA image only; never start a production service.
 image=private-ai-p23-console-qa:local
 docker build --pull=false --network=none --tag "$image" ./console
 docker run --rm --network none --read-only \
