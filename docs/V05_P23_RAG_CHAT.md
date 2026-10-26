@@ -172,3 +172,26 @@ Durchgeführt auf dem Raspberry Pi 5 mit `scripts/pi-p23-rag-live-smoke.py --mod
 - Antwort: `Die Hydraulikpumpe des Baggers erstellt Öldruck, welches mit den Hydraulikzylinder zum Bewegen des Auslegeres eingesetzt wird. [Q1]`.
 - Fachlich im Kern richtig, sprachlich unpräzise. Zitationsmarker bestätigt **keine faktische Verifikation** der einzelnen Formulierungen.
 - Noch nicht nachgewiesen: tatsächliche PDF-Textextraktion mit Seitenzahl im Live-Chat, Produktions-Docker-/Browserpfad, CI, Belastung und Prompt-Injection-Härtung.
+
+## Realer dreiseitiger PDF-RAG-Test (noch auszuführen)
+
+Mit `scripts/pi-p23-pdf-live-smoke.py` wurde ein gesonderter, isolierter Test für die letzte offene PDF-Lücke ergänzt. Der Test erzeugt ein echtes, dreiseitiges PDF mit suchbaren Helvetica-Textobjekten **nur im Arbeitsspeicher**, ohne Benutzerdateien zu verarbeiten. Der PDF-Import verläuft über den authentifizierten Console-Endpunkt `POST /api/documents/import` und den vorhandenen Gateway-PDF-Worker (`pypdf`), nicht über eine simulierte Importfunktion.
+
+Prüfungen: fehlender CSRF-Header führt zu HTTP 403; Import erzeugt drei Seiten-Chunks; Volltextsuche findet `Hydraulikpumpe` **ausschließlich auf Seite 2**; RAG-Chat verwendet nur den serverfesten Test-Namensraum; das Quellenereignis transportiert `[Q1]`, den Dateinamen und `page: 2`; SSE endet vollständig; lokales `qwen3:0.6b` liefert Antworttokens und soll `[Q1]` nennen. Alle Testdaten und Schlüssel existieren nur temporär.
+
+```bash
+cd ~/Projekte/Private-AI-Pipeline-P2-Dev
+git pull --ff-only origin feature/p2-rag-chat-citations
+.venv/bin/python -m py_compile scripts/pi-p23-pdf-live-smoke.py
+
+.venv/bin/python scripts/pi-p23-pdf-live-smoke.py \
+  --model qwen3:0.6b \
+  > /tmp/p23-pdf-rag-live.log 2>&1
+rc=$?
+echo "Exit-Code: $rc"
+tail -40 /tmp/p23-pdf-rag-live.log
+```
+
+Die virtuelle Python-Umgebung muss bereits `pypdf==5.9.0` enthalten, wie für die vorhandene PDF-Regressionssuite. Der Test verwendet weder bestehende SQLite-Volumes noch Compose, startet keine Cloud-Dienste und lädt keine Modelle herunter. Exit-Code 0: PDF-Import + Seitenprovenienz + lokales Modellzitat bestätigt; 3: Modellzitat fehlt, technischer Transport ggf. trotzdem erfolgreich; 2: Chatmodell nicht installiert; 1: technischer Abbruch oder Prüfungsfehler. Die tatsächliche Antwortqualität ist gesondert zu beurteilen.
+
+**Release-Gate bleibt offen**, bis ein echter Raspberry-Pi-Lauf die obigen Prüfmarker bestätigt. Ein generiertes dreiseitiges Text-PDF prüft den Original-Textlayer-Pfad, nicht Scans/OCR oder beliebige komplexe Layouts.
