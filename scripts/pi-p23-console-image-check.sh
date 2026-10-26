@@ -30,7 +30,7 @@ EOF
 
 # No container start/restart/stop/pull and no production .env read or print.
 docker compose --env-file "$envfile" \
-  -f compose.yaml -f compose.console.yaml config --format json \
+  -f compose.yaml -f compose.console.yaml --profile console config --format json \
   | python3 -c '
 import json,sys
 c=json.load(sys.stdin)
