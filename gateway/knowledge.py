@@ -145,6 +145,16 @@ def list_memories(db, namespace: str, query: str = ''):
 def cite_hit(db, namespace: str, hit: dict):
     """Add human-readable PDF provenance without exposing another namespace."""
     source = hit.get('source', '')
+    if source.startswith('upload:'):
+        match = re.fullmatch(r'upload:([a-f0-9]{24})#([0-9]+)',source)
+        if match:
+            hit['document_id']=match.group(1)
+            record=db.execute('SELECT filename FROM knowledge_documents WHERE namespace=? AND document_id=?',
+                              (validate_namespace(namespace),hit['document_id'])).fetchone()
+            if record:
+                hit['filename']=record[0]
+    elif source.startswith('doc:'):
+        hit['filename']=source[4:].rsplit('#',1)[0][:120]
     if source.startswith('pdf:'):
         match = re.fullmatch(r'pdf:([a-f0-9]{24}):p([1-9][0-9]*)#([0-9]+)', source)
         if match:

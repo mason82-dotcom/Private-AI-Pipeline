@@ -4,7 +4,7 @@ WORKDIR /app
 
 # Source archives can contain overly restrictive UNIX modes. Ensure the
 # non-root runtime user can read both the server and its static assets.
-COPY --chmod=0644 server.py ./server.py
+COPY --chmod=0644 server.py rag.py ./
 COPY static/ ./static/
 RUN chmod -R a+rX /app
 
