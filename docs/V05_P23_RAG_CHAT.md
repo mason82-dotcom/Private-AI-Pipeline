@@ -1,6 +1,6 @@
 # P2.3 – Optionale lokale Chat-Antworten mit Dokumentquellen
 
-**Status: Draft / Entwicklung.** P2.3-Regression auf dem Raspberry Pi bestanden: 79 Python-Tests, JavaScript-Syntax und 11 Chat-/RAG-SSE-Fälle mit Exit-Code 0. Isolierte Live-API-Smokes für FTS5-RAG (28,35 s) und semantischen RAG mit `nomic-embed-text` + `qwen3:0.6b` (3,73 s Index, 35,25 s API/Chat) bestanden. PDF-, Docker-/Browser-End-to-End-Abnahme und GitHub-CI stehen aus. Keine Änderungen am produktiven Raspberry-Pi-Stack.
+**Status: Draft / Entwicklung.** P2.3-Regression auf dem Raspberry Pi bestanden: 79 Python-Tests, JavaScript-Syntax und 11 Chat-/RAG-SSE-Fälle mit Exit-Code 0. Isolierte Live-API-Smokes für FTS5-RAG (28,35 s) und semantischen RAG mit `nomic-embed-text` + `qwen3:0.6b` (3,73 s Index, 35,25 s API/Chat) bestanden. Der isolierte PDF-RAG-End-to-End-Test ist ebenfalls bestanden (26,93 s, korrekte Seite 2). Docker-/Browser-End-to-End-Abnahme und GitHub-CI stehen aus. Keine Änderungen am produktiven Raspberry-Pi-Stack.
 
 ## Funktionen
 
@@ -53,7 +53,7 @@ Die `test_p23_rag.py`-Tests verwenden ausschließlich Loopback mit simuliertem O
 - [x] Pi-Python-Gesamtlauf inklusive P2.3: 79 Tests in 58,193 Sekunden, Exit-Code 0 (26.10.2026, Nutzerprotokoll)
 - [x] Chat-Kontext- und RAG-SSE-JavaScript-Regression: 11/11 bestanden; JavaScript-Syntaxcheck Exit-Code 0 (26.10.2026, Nutzerprotokoll)
 - [ ] CI-Lauf auf GitHub bestätigt
-- [ ] Echtes mehrseitiges PDF mit Seitenangabe in Chat geprüft
+- [x] Echtes generiertes dreiseitiges Text-PDF über authentifizierten Import, PDF-Worker, Volltextsuche und RAG-Chat mit Quellenbeleg Seite 2 geprüft (Pi, Exit-Code 0)
 - [x] Simulierte und reale semantische RAG-Suche auf dem Pi bestanden
 - [x] Semantische RAG-Suche mit echten lokalen Modellen; 2/2 Vektoren, korrektes Ranking, [Q1] zitiert; gemessene Index-/Gesamtdauer
 - [ ] Speicherlast und Ausfall-/Abbruchverhalten bei semantischen RAG-Anfragen separat prüfen
@@ -171,9 +171,9 @@ Durchgeführt auf dem Raspberry Pi 5 mit `scripts/pi-p23-rag-live-smoke.py --mod
 - Vollständige semantische Abfrage + Chatantwort **35,25 Sekunden**; nicht direkt mit FTS5-Latenz gleichzusetzen (Kalt-/Warmzustand und Last nicht kontrolliert).
 - Antwort: `Die Hydraulikpumpe des Baggers erstellt Öldruck, welches mit den Hydraulikzylinder zum Bewegen des Auslegeres eingesetzt wird. [Q1]`.
 - Fachlich im Kern richtig, sprachlich unpräzise. Zitationsmarker bestätigt **keine faktische Verifikation** der einzelnen Formulierungen.
-- Noch nicht nachgewiesen: tatsächliche PDF-Textextraktion mit Seitenzahl im Live-Chat, Produktions-Docker-/Browserpfad, CI, Belastung und Prompt-Injection-Härtung.
+- Zum Zeitpunkt des semantischen Testlaufs noch nicht nachgewiesen: PDF-Textextraktion mit Seitenzahl im Live-Chat (inzwischen separat bestanden), Produktions-Docker-/Browserpfad, CI, Belastung und Prompt-Injection-Härtung.
 
-## Realer dreiseitiger PDF-RAG-Test (noch auszuführen)
+## Realer dreiseitiger PDF-RAG-Test (auf Pi bestanden)
 
 Mit `scripts/pi-p23-pdf-live-smoke.py` wurde ein gesonderter, isolierter Test für die letzte offene PDF-Lücke ergänzt. Der Test erzeugt ein echtes, dreiseitiges PDF mit suchbaren Helvetica-Textobjekten **nur im Arbeitsspeicher**, ohne Benutzerdateien zu verarbeiten. Der PDF-Import verläuft über den authentifizierten Console-Endpunkt `POST /api/documents/import` und den vorhandenen Gateway-PDF-Worker (`pypdf`), nicht über eine simulierte Importfunktion.
 
@@ -194,4 +194,18 @@ tail -40 /tmp/p23-pdf-rag-live.log
 
 Die virtuelle Python-Umgebung muss bereits `pypdf==5.9.0` enthalten, wie für die vorhandene PDF-Regressionssuite. Der Test verwendet weder bestehende SQLite-Volumes noch Compose, startet keine Cloud-Dienste und lädt keine Modelle herunter. Exit-Code 0: PDF-Import + Seitenprovenienz + lokales Modellzitat bestätigt; 3: Modellzitat fehlt, technischer Transport ggf. trotzdem erfolgreich; 2: Chatmodell nicht installiert; 1: technischer Abbruch oder Prüfungsfehler. Die tatsächliche Antwortqualität ist gesondert zu beurteilen.
 
-**Release-Gate bleibt offen**, bis ein echter Raspberry-Pi-Lauf die obigen Prüfmarker bestätigt. Ein generiertes dreiseitiges Text-PDF prüft den Original-Textlayer-Pfad, nicht Scans/OCR oder beliebige komplexe Layouts.
+**PDF-Live-Gate bestanden am 26.10.2026.** Ein generiertes dreiseitiges Text-PDF prüft den Original-Textlayer-Pfad, nicht Scans/OCR oder beliebige komplexe Layouts. Docker-/Browser- und CI-Gates bleiben offen.
+
+## Mehrseitige PDF-Live-Abnahme vom 26.10.2026
+
+**Durchgeführt:** `scripts/pi-p23-pdf-live-smoke.py --model qwen3:0.6b` auf Raspberry Pi 5.
+
+- Exit-Code **0**, `P2.3 PDF LIVE RAG SMOKE: PASS`.
+- Echtes generiertes Text-PDF: **3 Seiten, 1408 Bytes**, nur temporäre SQLite-Datenbank und Loopback.
+- Authentifizierter PDF-Import und CSRF-Gate: **PASS**.
+- FTS5-Seitenprovenienz: Schlüsselwort `Hydraulikpumpe` korrekt auf **Seite 2**, **PASS**.
+- SSE-Quellennachweis `[Q1]` mit `hydraulik-dreiseitig.pdf` und `page: 2`: **PASS**.
+- SSE abgeschlossen, serverfester Namensraum: **PASS**; lokales `qwen3:0.6b` lieferte Antwort mit `[Q1]`.
+- Gemessene vollständige Chat-/RAG-Antwortdauer: **26,93 Sekunden**.
+- Antwortqualität: `Die Hydraulikpumpe erzeugt Oeldruck und bewegt den Baggerausleger durch den Oeldruck aus den Hydraulikzyanl. [Q1]`. Der letzte Fachbegriff ist verstümmelt, und Pumpe/Zylinder sind nicht sauber differenziert. Quellenmarker ist **kein Faktencheck**.
+- **Abnahmegrenze:** echtes Textlayer-PDF, aber künstlich erzeugte Testdatei; Scans, komplexe PDFs, echte Browser-/Docker-Bereitstellung und Security-Review nicht nachgewiesen. Kein Produktionsdeploy.
