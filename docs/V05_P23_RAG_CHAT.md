@@ -58,7 +58,10 @@ Die `test_p23_rag.py`-Tests verwenden ausschließlich Loopback mit simuliertem O
 - [x] Semantische RAG-Suche mit echten lokalen Modellen; 2/2 Vektoren, korrektes Ranking, [Q1] zitiert; gemessene Index-/Gesamtdauer
 - [ ] Speicherlast und Ausfall-/Abbruchverhalten bei semantischen RAG-Anfragen separat prüfen
 - [x] Isolierter Live-API-Smoke: Authentifizierung, serverfestes Scope, SSE-Quellen und lokale Ollama-Antwort mit `[Q1]` geprüft
-- [ ] Vollständige Docker-/Browser-End-to-End-Abnahme einschließlich CSP und Stream-Abbruch geprüft
+- [x] Isolierter Docker-HTTP-Test: Login, CSP, CSRF, Origin, Testimport, Namespace, SSE `[Q1]`, Non-RAG-Chat und Erreichbarkeit nach Client-Disconnect; Exit-Code 0 (26.10.2026)
+- [x] DOM-basierte JavaScript-Regression mit tatsächlicher `app.js`: 23 Assertions (26.10.2026)
+- [x] Aktualisierte Python-Gesamtsuite: 83/83 bestanden, 60,865 Sekunden (26.10.2026)
+- [ ] Echter Browser-Test einschließlich Layout/CSP und tatsächlicher Upstream-Abbruchmechanik
 - [ ] Manuelle Review: Prompt-Injection, Quellenidentität, Egress und Last
 - [ ] Vorgelagerte P2.1 und P2.2 PRs gemergt
 
@@ -237,7 +240,7 @@ Vor optionalem Build `docker image inspect python:3.13-slim` zur Sichtprüfung. 
 
 **Offen trotz dieser Tests:** echter Browser mit DOM/CSP unter HTTP, realer mobiler UI-Test, produktionsferner Containerverbund mit eigener Netzwerk-/Volume-Isolation, nachweisbarer Stream-Abbruch im echten Proxy-Pfad und Security-Review. Dieses Gate ist also zunächst eine **Vorauswahl**, nicht die endgültige UI-/Docker-Freigabe.
 
-## Isolierter Docker-HTTP-Test mit vorhandenen QA-Images (neu, Pi-Lauf ausstehend)
+## Isolierter Docker-HTTP-Test mit vorhandenen QA-Images (auf Pi bestanden)
 
 Der gemeldete Gateway-QA-Image-Abgleich ergab sechs von sechs identische Dateien. Das aktualisierte Console-Image private-ai-p23-console:qa-current bestand den isolierten Laufzeittest und sein server.py-Hash stimmt mit dem Checkout überein. Das ältere Console-Image :qa wurde bei server.py als veraltet erkannt.
 
@@ -262,4 +265,19 @@ tail -35 /tmp/p23-docker-http-smoke.log
 
 Erwartete Marker bei Exit-Code 0: Console HTTP login/CSP/RAG config PASS; Authenticated import/CSRF/Origin/fixed namespace PASS; Container-to-container RAG SSE [Q1] PASS; Non-RAG chat PASS; Client disconnect during SSE and Console remains responsive PASS; P2.3 ISOLATED DOCKER HTTP SMOKE: PASS; QA cleanup finished.
 
-**Stand:** Dateien ins GitHub-Repository übernommen; der neue Docker-HTTP-Lauf wurde noch nicht auf dem Pi ausgeführt. PR bleibt Draft; kein Produktivdeploy oder Merge.
+**Stand:** Am 26.10.2026 auf dem Raspberry Pi 5 mit Exit-Code **0** bestanden. Der HTTP-Test startete das eigene interne Netzwerk ohne Host-Portveröffentlichung, alle drei QA-Container wurden bereit, sämtliche HTTP-Prüfungen bestanden und die abschließende Cleanup-Ausgabe bestätigte die Entfernung der temporären Ressourcen. PR bleibt Draft; kein Produktivdeploy oder Merge.
+
+## Isolierte Docker-HTTP-Abnahme vom 26.10.2026
+
+**Nutzerprotokoll:** `bash scripts/pi-p23-docker-http-smoke.sh`, Exit-Code **0**.
+
+- Neues internes Docker-Netzwerk ohne Host-Ports erzeugt; drei temporäre QA-Dienste bereit.
+- `Console HTTP login, CSP, session, static UI and RAG config: PASS`
+- `Authenticated import, CSRF, Origin and fixed namespace: PASS`
+- `Container-to-container RAG, SSE [Q1] and completion: PASS`
+- `Non-RAG chat unchanged: PASS`
+- `HTTP client disconnect during SSE; Console remains responsive: PASS`
+- `P2.3 ISOLATED DOCKER HTTP SMOKE: PASS`
+- `P2.3 QA cleanup finished (disposable resources only)`
+
+**Grenzen:** Simulierter Ollama-Upstream; kein tatsächlicher Browser, kein realer CSS-/CSP-Browser-Renderpfad und kein Nachweis, dass Client-Abbruch die Upstream-Berechnung beendet. Die erfolgreiche Cleanup-Meldung stammt vom Testskript; ein unabhängiger Nachlauf der Docker-Ressourcen ist damit nicht belegt. Produktive Volumes und Container wurden durch die Testanweisungen nicht angesprochen.
