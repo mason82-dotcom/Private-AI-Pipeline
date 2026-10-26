@@ -109,6 +109,9 @@ ready=false
 for attempt in $(seq 1 48); do
   if docker exec "$console" python -c \
     'import urllib.request; urllib.request.urlopen("http://127.0.0.1:8085/health",timeout=2).read()' \
+    >/dev/null 2>&1 \
+    && docker exec "$gateway" python -c \
+    'import urllib.request; urllib.request.urlopen("http://127.0.0.1:8000/health",timeout=2).read(); urllib.request.urlopen("http://ollama:11434/v1/models",timeout=2).read()' \
     >/dev/null 2>&1; then
     ready=true
     break
