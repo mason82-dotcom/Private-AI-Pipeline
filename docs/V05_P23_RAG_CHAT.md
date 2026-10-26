@@ -209,3 +209,30 @@ Die virtuelle Python-Umgebung muss bereits `pypdf==5.9.0` enthalten, wie für di
 - Gemessene vollständige Chat-/RAG-Antwortdauer: **26,93 Sekunden**.
 - Antwortqualität: `Die Hydraulikpumpe erzeugt Oeldruck und bewegt den Baggerausleger durch den Oeldruck aus den Hydraulikzyanl. [Q1]`. Der letzte Fachbegriff ist verstümmelt, und Pumpe/Zylinder sind nicht sauber differenziert. Quellenmarker ist **kein Faktencheck**.
 - **Abnahmegrenze:** echtes Textlayer-PDF, aber künstlich erzeugte Testdatei; Scans, komplexe PDFs, echte Browser-/Docker-Bereitstellung und Security-Review nicht nachgewiesen. Kein Produktionsdeploy.
+
+## P2.3 GUI-/Docker-Gate ohne Produktiveingriff (neu; noch nicht auf Pi ausgeführt)
+
+Es gibt zwei neue, bewusst getrennte Teststufen:
+
+1. `tests/test_p23_browser.cjs` lädt **die tatsächliche** `console/static/app.js` in eine kontrollierte Node-VM mit simuliertem DOM/Fetch. Verifiziert RAG-Opt-in/Deaktivierung, HTML-Escaping von Dateinamen und Quellentexten, PDF-Seite, SSE-Fragmentierung, vollständiges Streamende, Browser-Abbruch und Ausschluss abgebrochener Turns aus dem nächsten Chat-Kontext. **Dies ist kein echter Browser-/Screenshot-Test**.
+2. `scripts/pi-p23-console-image-check.sh` validiert ausschließlich die synthetische Compose-Konfiguration aus einem temporären Env-File: Console RAG-Opt-in, an `127.0.0.1` gebundener Port, internes Bridge-Netz, Read-only-Rootfs, gesperrte Linux-Capabilities. `docker compose config` startet, stoppt, baut und aktualisiert **keine** bestehenden Services. Optional `--build` prüft einen **separaten lokalen** QA-Image-Build und führt Python-Importe in einem isolierten Container aus (`--network none`, `--read-only`, User 10001); der Base-Image-Cache für `python:3.13-slim` ist dafür zwingend erforderlich. Wenn nicht vorhanden, wird ohne Download abgebrochen.
+
+```bash
+cd ~/Projekte/Private-AI-Pipeline-P2-Dev
+git pull --ff-only origin feature/p2-rag-chat-citations
+
+node --check console/static/app.js
+node tests/test_chat_history.cjs
+node tests/test_p23_browser.cjs
+
+bash scripts/pi-p23-console-image-check.sh
+
+# Nur optional, nur wenn bereits python:3.13-slim im Docker-Cache:
+# bash scripts/pi-p23-console-image-check.sh --build
+
+.venv/bin/python -m unittest discover -s tests -q
+```
+
+Vor optionalem Build `docker image inspect python:3.13-slim` zur Sichtprüfung. Bitte **kein** `docker compose up`, `down`, `restart`, `pull` oder Test-Deployment gegen das produktive Compose-Projekt ausführen. Der Test schreibt lediglich lokale Logdateien/temporäre Testdaten und beim optionalen Build ein separates QA-Image. Die unversionierten Dateien `.agents/` und `skills-lock.json` bleiben unberührt.
+
+**Offen trotz dieser Tests:** echter Browser mit DOM/CSP unter HTTP, realer mobiler UI-Test, produktionsferner Containerverbund mit eigener Netzwerk-/Volume-Isolation, nachweisbarer Stream-Abbruch im echten Proxy-Pfad und Security-Review. Dieses Gate ist also zunächst eine **Vorauswahl**, nicht die endgültige UI-/Docker-Freigabe.
