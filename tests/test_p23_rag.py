@@ -18,6 +18,7 @@ from server import Server as Console,hash_password
 from memdb import connect
 from knowledge import add_document,add_pdf_pages
 from rag import build_rag_messages
+from semantic import OllamaEmbedder,pending_index
 
 TOKEN='x'*64
 KNOW='k'*64
@@ -25,6 +26,20 @@ KNOW='k'*64
 class Ollama(BaseHTTPRequestHandler):
     def log_message(self,*args): pass
     def do_POST(self):
+        if self.path=='/api/embed':
+            size=int(self.headers['Content-Length'])
+            request=json.loads(self.rfile.read(size))
+            if request.get('model')!='nomic-embed-text:latest':
+                self.send_error(400);return
+            text=request.get('input','').lower()
+            vector=[1.0 if 'hydraulik' in text else 0.0,
+                    0.0 if 'hydraulik' in text else 1.0]+[0.0]*62
+            body=json.dumps({'embeddings':[vector]}).encode()
+            self.send_response(200)
+            self.send_header('Content-Type','application/json')
+            self.send_header('Content-Length',str(len(body)))
+            self.end_headers();self.wfile.write(body)
+            return
         if self.path!='/v1/chat/completions':
             self.send_error(404);return
         size=int(self.headers['Content-Length'])
@@ -136,6 +151,57 @@ class TestRAG(unittest.TestCase):
         data=self.message();data['namespace']='secret'
         with self.assertRaises(urllib.error.HTTPError) as e:self.req('/api/chat',data)
         self.assertEqual(e.exception.code,400)
+
+    def test_semantic_no_index_or_disabled_blocks_chat(self):
+        self.login()
+        self.gateway.semantic_enabled=True
+        data=self.message()
+        data['rag_mode']='semantic'
+        with self.assertRaises(urllib.error.HTTPError) as err:
+            self.req('/api/chat',data)
+        self.assertEqual(err.exception.code,409)
+        self.assertFalse(hasattr(self.ollama,'last'))
+        self.gateway.semantic_enabled=False
+        with self.assertRaises(urllib.error.HTTPError) as err:
+            self.req('/api/chat',data)
+        self.assertEqual(err.exception.code,403)
+        self.assertFalse(hasattr(self.ollama,'last'))
+
+    def test_semantic_rag_with_fake_embeddings_and_pdf_page(self):
+        self.login()
+        self.gateway.semantic_enabled=True
+        embedder=OllamaEmbedder(
+            f'http://127.0.0.1:{self.ollama.server_port}',
+            'nomic-embed-text:latest')
+        with connect(self.gateway.memory_db) as db:
+            indexed=pending_index(db,'personal',embedder,limit=8)
+            self.assertEqual(indexed['indexed'],2)
+            # A document from another namespace may also have vectors; it
+            # must never appear in the current knowledge scope.
+            self.assertEqual(pending_index(db,'secret',embedder,limit=8)['indexed'],1)
+        data=self.message()
+        data['rag_mode']='semantic'
+        with self.req('/api/chat',data) as resp:
+            self.assertEqual(resp.headers.get_content_type(),'text/event-stream')
+            raw=resp.read().decode()
+        self.assertIn('event: rag_sources',raw)
+        self.assertIn('handbuch.pdf',raw)
+        self.assertIn('"page": 3',raw)
+        self.assertIn('technik.txt',raw)
+        self.assertNotIn('Vertraulicher',raw)
+        self.assertIn('Antwort [Q1]',raw)
+        system=self.ollama.last['messages'][0]['content']
+        self.assertIn('Seite 3',system)
+        self.assertNotIn('Vertraulicher',system)
+        self.assertTrue(self.ollama.last['stream'])
+
+    def test_fts_pdf_page_provenance_on_wire(self):
+        self.login()
+        with self.req('/api/chat',self.message('benötigt')) as resp:
+            raw=resp.read().decode()
+        self.assertIn('handbuch.pdf',raw)
+        self.assertIn('"page": 3',raw)
+        self.assertNotIn('geheim.txt',raw)
 
     def test_pdf_page_citation_builder(self):
         msg=[{'role':'user','content':'Was steht auf Seite 3?'}]
