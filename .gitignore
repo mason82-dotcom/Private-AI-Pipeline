@@ -5,6 +5,7 @@
 
 # Python/JS temporary files
 __pycache__/
+.venv/
 .pytest_cache/
 __pypackages__/
 *.pyc
@@ -14,6 +15,8 @@ __pypackages__/
 *.sqlite3
 *.sqlite3-*
 *.sqlite*
+*.sqlite3
+*.sqlite3-*
 *.db
 *.db-*
 backups/

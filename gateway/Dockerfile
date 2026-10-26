@@ -2,7 +2,7 @@
 FROM python:3.13-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
-COPY gateway.py memdb.py memcli.py mcp_stdio.py knowledge.py pdf_ingest.py pdf_extract.py ./
+COPY gateway.py memdb.py memcli.py mcp_stdio.py knowledge.py pdf_ingest.py pdf_extract.py semantic.py ./
 RUN pip install --no-cache-dir --only-binary=:all: pypdf==5.9.0
 # Seed the volume with a file so fresh Docker volumes preserve directory ownership.
 RUN mkdir -p /data /documents && touch /data/.volume-init && chown -R 10001:10001 /data /app

@@ -142,18 +142,23 @@ def list_memories(db, namespace: str, query: str = ''):
     return [{'source':source,'body':body[:1700]} for source,body in rows]
 
 
+def cite_hit(db, namespace: str, hit: dict):
+    """Add human-readable PDF provenance without exposing another namespace."""
+    source = hit.get('source', '')
+    if source.startswith('pdf:'):
+        match = re.fullmatch(r'pdf:([a-f0-9]{24}):p([1-9][0-9]*)#([0-9]+)', source)
+        if match:
+            hit['document_id'] = match.group(1)
+            hit['page'] = int(match.group(2))
+            record = db.execute('SELECT filename FROM knowledge_documents WHERE namespace=? AND document_id=?',
+                                (validate_namespace(namespace), hit['document_id'])).fetchone()
+            if record:
+                hit['filename'] = record[0]
+    return hit
+
+
 def find_documents(db, namespace: str, query: str):
     if not isinstance(query,str) or len(query)>200:
         raise ValueError('Suche zu lang')
-    matches=[]
-    for source,body in scoped_search(db,namespace,query,True):
-        hit={'source':source,'excerpt':body[:400]}
-        if source.startswith('pdf:'):
-            match=re.fullmatch(r'pdf:([a-f0-9]{24}):p([1-9][0-9]*)#([0-9]+)',source)
-            if match:
-                hit['document_id']=match.group(1)
-                hit['page']=int(match.group(2))
-                record=db.execute('SELECT filename FROM knowledge_documents WHERE namespace=? AND document_id=?',(namespace,hit['document_id'])).fetchone()
-                if record:hit['filename']=record[0]
-        matches.append(hit)
-    return matches
+    return [cite_hit(db,namespace,{'source':src,'excerpt':body[:400]})
+            for src,body in scoped_search(db,namespace,query,True)]

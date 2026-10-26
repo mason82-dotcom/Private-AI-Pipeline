@@ -16,7 +16,8 @@ import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from memdb import connect, search, validate_namespace
-from knowledge import add_document, add_pdf_pages, list_documents, list_memories, find_documents
+from knowledge import add_document, add_pdf_pages, list_documents, list_memories, find_documents, cite_hit
+from semantic import OllamaEmbedder, semantic_search, initialize, EmbedUnavailable
 from pdf_ingest import parse_base64_pdf
 
 MAX_BODY = 1024 * 1024
@@ -149,8 +150,23 @@ class Handler(BaseHTTPRequestHandler):
                         result={'memories':list_memories(db,namespace,q)}
                     elif kind=='search':
                         result={'results':find_documents(db,namespace,q)}
+                    elif kind=='semantic':
+                        if not self.server.semantic_enabled:
+                            self.respond(403, {'error':'Semantische Suche deaktiviert'})
+                            return
+                        initialize(db)
+                        indexed=db.execute('SELECT 1 FROM semantic_vectors WHERE namespace=? AND model=? LIMIT 1',
+                                           (namespace,self.server.semantic_model)).fetchone()
+                        if not indexed:
+                            self.respond(409, {'error':'Noch keine semantischen Dokument-Vektoren indiziert'})
+                            return
+                        embedder=OllamaEmbedder(self.server.upstream,self.server.semantic_model,timeout=45)
+                        hits=semantic_search(db,namespace,q,embedder)
+                        result={'results':[cite_hit(db,namespace,hit) for hit in hits],
+                                'search_mode':'semantic', 'embedding_model':self.server.semantic_model}
                     else: raise ValueError('Unbekannter Datentyp')
-                    self.respond(200,dict(result,scope='single_operator',namespace=namespace,import_enabled=self.server.import_enabled))
+                    self.respond(200,dict(result,scope='single_operator',namespace=namespace,import_enabled=self.server.import_enabled,
+                                             semantic_enabled=self.server.semantic_enabled))
                 else:
                     if not self.server.import_enabled:
                         self.respond(403, {'error':'Import serverseitig deaktiviert'})
@@ -171,6 +187,8 @@ class Handler(BaseHTTPRequestHandler):
                     else:
                         raise ValueError('Ungültiger Import')
                     self.respond(200,dict(result,scope='single_operator'))
+        except EmbedUnavailable:
+            self.respond(503, {'error':'Lokales Embedding-Modell nicht verfügbar'})
         except (ValueError,TypeError,UnicodeError,json.JSONDecodeError):
             self.respond(400, {'error':'Ungültige Wissensanfrage oder Datei'})
         except Exception:
@@ -267,7 +285,7 @@ class Handler(BaseHTTPRequestHandler):
 
 class Server(ThreadingHTTPServer):
     daemon_threads = True
-    def __init__(self, address, upstream, auth_token, memory_db, memory_injection, memory_namespace="webui", knowledge_token="", knowledge_namespace="personal", import_enabled=False):
+    def __init__(self, address, upstream, auth_token, memory_db, memory_injection, memory_namespace="webui", knowledge_token="", knowledge_namespace="personal", import_enabled=False, semantic_enabled=False, semantic_model="nomic-embed-text:latest"):
         super().__init__(address, Handler)
         self.upstream = allowed_local_target(upstream)
         self.auth_token = auth_token
@@ -275,6 +293,10 @@ class Server(ThreadingHTTPServer):
         self.knowledge_token = knowledge_token if len(knowledge_token) >= 32 else ''
         self.knowledge_namespace = validate_namespace(knowledge_namespace)
         self.import_enabled = bool(import_enabled)
+        if semantic_model not in ('nomic-embed-text:latest','bge-m3:latest'):
+            raise ValueError('Embedding-Modell nicht freigegeben')
+        self.semantic_enabled = bool(semantic_enabled)
+        self.semantic_model = semantic_model
         self.memory_injection = memory_injection
         self.memory_namespace = validate_namespace(memory_namespace)
 
@@ -290,7 +312,9 @@ def main():
            token, db, os.getenv('MEMORY_INJECTION', 'false').lower() == 'true',
            os.getenv('WEBUI_MEMORY_NAMESPACE', 'webui'),
            os.getenv('KNOWLEDGE_TOKEN', ''), os.getenv('KNOWLEDGE_NAMESPACE', 'personal'),
-           os.getenv('KNOWLEDGE_IMPORT_ENABLED', 'false').lower() == 'true').serve_forever()
+           os.getenv('KNOWLEDGE_IMPORT_ENABLED', 'false').lower() == 'true',
+           os.getenv('SEMANTIC_SEARCH_ENABLED','false').lower() == 'true',
+           os.getenv('SEMANTIC_MODEL','nomic-embed-text:latest')).serve_forever()
 
 
 if __name__ == '__main__':
