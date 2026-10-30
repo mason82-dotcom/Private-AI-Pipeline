@@ -13,7 +13,7 @@
 - Quellen-IDs `[Q1]` bis `[Q3]`; vorhandene Dateinamen und PDF-Seitenzahlen werden mitgeführt.
 - Die Console zeigt **abgerufene Fundstellen**, nicht kryptografisch überprüfte Modellzitate. Sie werden als „nicht automatisch verifiziert“ gekennzeichnet.
 - Bei keiner Fundstelle (HTTP 409), ausgeschalteter Funktion (403), nicht bereitem semantischem Index (409) oder fehlender lokaler Wissens-API (503) wird **keine unbelegte RAG-Antwort** gestartet.
-- Server entschärft den Prompt: Dokumente werden als unvertrauenswürdige Daten gekennzeichnet; System-/Rollenanweisungen aus Dokumenten sollen ignoriert werden. Dies ist kein absoluter Schutz vor Prompt Injection.
+- Server entschärft den Prompt: Dokumente werden als maskiertes JSON in genau einem unvertrauenswürdigen Datenblock übertragen; Steuerzeichen und wörtliche Block-End-Tags können keine zusätzliche Prompt-Rolle erzeugen. System-/Rollenanweisungen und Tool-Aufrufe aus Dokumenten sollen ignoriert werden. Dies ist kein absoluter Schutz vor Prompt Injection; Details und Angriffskorpus: [PAI-015](PAI_015_PROMPT_BOUNDARIES.md).
 - Bestehender Chat ohne RAG bleibt unverändert; keine dauerhafte eigene Chat-Historie.
 
 ## Konfiguration
