@@ -235,8 +235,8 @@ class TestRAG(unittest.TestCase):
         messages,sources=build_rag_messages([{'role':'user','content':'Test'}],
                        {'results':[{'source':'upload:123#0','excerpt':txt}]})
         self.assertEqual(len(sources),1)
-        self.assertIn('unvertrauenswürdigen Text',messages[0]['content'])
-        self.assertIn('<<<QUELLENTEXT',messages[0]['content'])
+        self.assertIn('unvertrauenswürdige Daten',messages[0]['content'])
+        self.assertIn('<untrusted_sources_json>',messages[0]['content'])
         self.assertEqual(messages[-1]['content'],'Test')
 
 if __name__=='__main__':unittest.main()
