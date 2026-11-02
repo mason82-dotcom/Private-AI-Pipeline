@@ -12,6 +12,7 @@ command -v python3 >/dev/null
 for image in private-ai-p23-console:qa-current private-ai-p23-gateway:qa; do
   if ! docker image inspect "$image" >/dev/null 2>&1; then
     echo "ABBRUCH: QA-Image lokal nicht vorhanden: $image" >&2
+    echo "Bauen: bash scripts/pi-p23-console-image-check.sh --build --build-gateway (python:3.13-slim muss im Cache sein)" >&2
     exit 2
   fi
 done
