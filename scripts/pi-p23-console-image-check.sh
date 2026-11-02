@@ -3,13 +3,18 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# --build          Console-QA-Image private-ai-p23-console:qa-current (ohne Netz)
+# --build-gateway  Gateway-QA-Image private-ai-p23-gateway:qa; laedt dabei NUR pypdf==5.9.0 (Wheel) von PyPI
+# Beide Namen sind genau die, die scripts/pi-p23-docker-http-smoke.sh erwartet.
 do_build=false
-if [[ "$#" -eq 1 && "$1" == "--build" ]]; then
-  do_build=true
-elif [[ "$#" -gt 0 ]]; then
-  echo "Usage: bash scripts/pi-p23-console-image-check.sh [--build]" >&2
-  exit 2
-fi
+do_gateway=false
+for arg in "$@"; do
+  case "$arg" in
+    --build) do_build=true ;;
+    --build-gateway) do_gateway=true ;;
+    *) echo "Usage: bash scripts/pi-p23-console-image-check.sh [--build] [--build-gateway]" >&2; exit 2 ;;
+  esac
+done
 
 command -v docker >/dev/null
 command -v python3 >/dev/null
@@ -46,9 +51,9 @@ assert any(network.get("internal") is True for network in c["networks"].values()
 print("P2.3 isolated Compose config: PASS (RAG opt-in, loopback, read-only, internal network)")
 '
 
-if ! "$do_build"; then
+if ! "$do_build" && ! "$do_gateway"; then
   echo "P2.3 Compose config: PASS; Docker image build not requested."
-  echo "Optional: bash scripts/pi-p23-console-image-check.sh --build"
+  echo "Optional: bash scripts/pi-p23-console-image-check.sh --build [--build-gateway]"
   exit 0
 fi
 
@@ -58,8 +63,9 @@ if ! docker image inspect python:3.13-slim >/dev/null 2>&1; then
   echo 'ABBRUCH: python:3.13-slim nicht lokal im Docker-Cache; kein Download erlaubt.' >&2
   exit 2
 fi
+if "$do_build"; then
 # Build an isolated QA image only; never start a production service.
-image=private-ai-p23-console-qa:local
+image=private-ai-p23-console:qa-current
 docker build --pull=false --network=none --tag "$image" ./console
 docker run --rm --network none --read-only \
   --user 10001:10001 --cap-drop ALL \
@@ -80,4 +86,24 @@ messages,sources=build_rag_messages(
 assert len(sources)==1 and len(messages)>=2
 print("P2.3 isolated Console image/runtime: PASS (non-root, read-only, network none)")
 '
-echo "P2.3 image built locally; no running Docker service changed."
+echo "P2.3 Console QA image: $image"
+fi
+
+if "$do_gateway"; then
+  # --pull=false: das Basis-Image kommt nur aus dem Cache. Der RUN-Schritt braucht Netz fuer das gepinnte pypdf-Wheel.
+  gateway_image=private-ai-p23-gateway:qa
+  echo "Hinweis: Gateway-Build laedt pypdf==5.9.0 (nur Wheel) von PyPI."
+  docker build --pull=false --tag "$gateway_image" ./gateway
+  docker run --rm --network none --read-only \
+    --user 10001:10001 --cap-drop ALL \
+    --security-opt no-new-privileges \
+    --entrypoint python "$gateway_image" -c '
+import ast, pathlib, pypdf
+for p in sorted(pathlib.Path("/app").glob("*.py")):
+    ast.parse(p.read_text(encoding="utf-8"), str(p))
+assert pypdf.__version__ == "5.9.0", pypdf.__version__
+print("P2.3 isolated Gateway image/runtime: PASS (non-root, read-only, network none, pypdf 5.9.0)")
+'
+  echo "P2.3 Gateway QA image: $gateway_image"
+fi
+echo "P2.3 image build finished locally; no running Docker service changed."
