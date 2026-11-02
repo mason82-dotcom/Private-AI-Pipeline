@@ -59,6 +59,7 @@ Die `test_p23_rag.py`-Tests verwenden ausschließlich Loopback mit simuliertem O
 - [ ] Speicherlast und Ausfall-/Abbruchverhalten bei semantischen RAG-Anfragen separat prüfen
 - [x] Isolierter Live-API-Smoke: Authentifizierung, serverfestes Scope, SSE-Quellen und lokale Ollama-Antwort mit `[Q1]` geprüft
 - [x] Isolierter Docker-HTTP-Test: Login, CSP, CSRF, Origin, Testimport, Namespace, SSE `[Q1]`, Non-RAG-Chat und Erreichbarkeit nach Client-Disconnect; Exit-Code 0 (26.10.2026)
+- [x] Wiederholung mit vom Skript neu gebauten QA-Images und unabhängigem Docker-Nachlauf (Produktion unverändert, keine QA-Reste); Exit-Code 0 (02.11.2026)
 - [x] DOM-basierte JavaScript-Regression mit tatsächlicher `app.js`: 23 Assertions (26.10.2026)
 - [x] Aktualisierte Python-Gesamtsuite: 83/83 bestanden, 60,865 Sekunden (26.10.2026)
 - [ ] Echter Browser-Test einschließlich Layout/CSP und tatsächlicher Upstream-Abbruchmechanik
@@ -218,7 +219,7 @@ Die virtuelle Python-Umgebung muss bereits `pypdf==5.9.0` enthalten, wie für di
 Es gibt zwei neue, bewusst getrennte Teststufen:
 
 1. `tests/test_p23_browser.cjs` lädt **die tatsächliche** `console/static/app.js` in eine kontrollierte Node-VM mit simuliertem DOM/Fetch. Verifiziert RAG-Opt-in/Deaktivierung, HTML-Escaping von Dateinamen und Quellentexten, PDF-Seite, SSE-Fragmentierung, vollständiges Streamende, Browser-Abbruch und Ausschluss abgebrochener Turns aus dem nächsten Chat-Kontext. **Dies ist kein echter Browser-/Screenshot-Test**.
-2. `scripts/pi-p23-console-image-check.sh` validiert ausschließlich die synthetische Compose-Konfiguration aus einem temporären Env-File: Console RAG-Opt-in, an `127.0.0.1` gebundener Port, internes Bridge-Netz, Read-only-Rootfs, gesperrte Linux-Capabilities. `docker compose config` startet, stoppt, baut und aktualisiert **keine** bestehenden Services. Optional `--build` prüft einen **separaten lokalen** QA-Image-Build und führt Python-Importe in einem isolierten Container aus (`--network none`, `--read-only`, User 10001); der Base-Image-Cache für `python:3.13-slim` ist dafür zwingend erforderlich. Wenn nicht vorhanden, wird ohne Download abgebrochen.
+2. `scripts/pi-p23-console-image-check.sh` validiert ausschließlich die synthetische Compose-Konfiguration aus einem temporären Env-File: Console RAG-Opt-in, an `127.0.0.1` gebundener Port, internes Bridge-Netz, Read-only-Rootfs, gesperrte Linux-Capabilities. `docker compose config` startet, stoppt, baut und aktualisiert **keine** bestehenden Services. Optional `--build` baut das Console-QA-Image `private-ai-p23-console:qa-current` (Build ohne Netz) und führt Python-Importe in einem isolierten Container aus (`--network none`, `--read-only`, User 10001). Optional `--build-gateway` baut `private-ai-p23-gateway:qa`; dabei wird **nur** das gepinnte Wheel `pypdf==5.9.0` von PyPI geladen, danach prüft ein isolierter Container Syntax aller Gateway-Module und die pypdf-Version. Beide Namen sind genau die, die `scripts/pi-p23-docker-http-smoke.sh` erwartet (bis 02.11.2026 erzeugte `--build` den abweichenden Namen `private-ai-p23-console-qa:local`, und für das Gateway-Image gab es keinen Build-Schritt). Der Base-Image-Cache für `python:3.13-slim` ist für beide zwingend; fehlt er, wird ohne Download abgebrochen.
 
 ```bash
 cd ~/Projekte/Private-AI-Pipeline-P2-Dev
@@ -230,8 +231,9 @@ node tests/test_p23_browser.cjs
 
 bash scripts/pi-p23-console-image-check.sh
 
-# Nur optional, nur wenn bereits python:3.13-slim im Docker-Cache:
-# bash scripts/pi-p23-console-image-check.sh --build
+# Nur optional, nur wenn bereits python:3.13-slim im Docker-Cache
+# (--build-gateway laedt zusaetzlich nur pypdf==5.9.0 von PyPI):
+# bash scripts/pi-p23-console-image-check.sh --build --build-gateway
 
 .venv/bin/python -m unittest discover -s tests -q
 ```
@@ -257,6 +259,8 @@ cd ~/Projekte/Private-AI-Pipeline-P2-Dev
 git pull --ff-only origin feature/p2-rag-chat-citations
 bash -n scripts/pi-p23-docker-http-smoke.sh
 .venv/bin/python -m py_compile scripts/pi-p23-docker-ollama-mock.py scripts/pi-p23-docker-http-client.py
+# QA-Images, falls nicht vorhanden (python:3.13-slim muss im Cache sein):
+bash scripts/pi-p23-console-image-check.sh --build --build-gateway
 bash scripts/pi-p23-docker-http-smoke.sh > /tmp/p23-docker-http-smoke.log 2>&1
 rc=$?
 echo "Exit-Code: $rc"
@@ -281,3 +285,39 @@ Erwartete Marker bei Exit-Code 0: Console HTTP login/CSP/RAG config PASS; Authen
 - `P2.3 QA cleanup finished (disposable resources only)`
 
 **Grenzen:** Simulierter Ollama-Upstream; kein tatsächlicher Browser, kein realer CSS-/CSP-Browser-Renderpfad und kein Nachweis, dass Client-Abbruch die Upstream-Berechnung beendet. Die erfolgreiche Cleanup-Meldung stammt vom Testskript; ein unabhängiger Nachlauf der Docker-Ressourcen ist damit nicht belegt. Produktive Volumes und Container wurden durch die Testanweisungen nicht angesprochen.
+
+## Wiederholung der isolierten Docker-HTTP-Abnahme vom 02.11.2026
+
+**Anlass:** Die QA-Images vom 26.10.2026 waren nicht mehr vorhanden, `python:3.13-slim` lag nicht im Docker-Cache. Auf
+ausdrückliche Freigabe des Betreibers wurde das Basis-Image einmalig geladen
+(`python@sha256:2d44738ebf4ce5f63b9d9ea871e9c7cfdc0426f7b0c97cac915fd88ded1d86bb`).
+
+**Ablauf (Raspberry Pi 5, Stand `3152d5b` plus der vorangehenden Skriptkorrektur `fix(P2.3)`):**
+
+1. Alle `private-ai-p23-*`-Images entfernt, dann ausschließlich mit
+   `bash scripts/pi-p23-console-image-check.sh --build --build-gateway` neu gebaut (Exit-Code 0):
+   - `P2.3 isolated Compose config: PASS (RAG opt-in, loopback, read-only, internal network)`
+   - `P2.3 isolated Console image/runtime: PASS (non-root, read-only, network none)`, Image `private-ai-p23-console:qa-current`
+     (`sha256:ea4cca87388b9d72cf3715c222bb270ff84f248d67bd1cea3b3e3e4f511fc564`)
+   - `P2.3 isolated Gateway image/runtime: PASS (non-root, read-only, network none, pypdf 5.9.0)`, Image `private-ai-p23-gateway:qa`
+     (`sha256:867bca581e480a340bdde7da25266ed9479aa8f3b884a31e3ff5d481db37151e`); geladen wurde nur `pypdf-5.9.0` von PyPI.
+2. `bash scripts/pi-p23-docker-http-smoke.sh`, Exit-Code **0**, alle Marker:
+   - `Console HTTP login, CSP, session, static UI and RAG config: PASS`
+   - `Authenticated import, CSRF, Origin and fixed namespace: PASS`
+   - `Container-to-container RAG, SSE [Q1] and completion: PASS`
+   - `Non-RAG chat unchanged: PASS`
+   - `HTTP client disconnect during SSE; Console remains responsive: PASS`
+   - `P2.3 ISOLATED DOCKER HTTP SMOKE: PASS`
+   - `P2.3 QA cleanup finished (disposable resources only)`
+3. **Unabhängiger Nachlauf** (schließt die Lücke der Abnahme vom 26.10.2026): Vorher-/Nachher-Vergleich der produktiven
+   Compose-Ressourcen `private-ai-pipeline` per `docker ps`/`docker inspect` (Container-IDs, Startzeiten, Image-IDs,
+   Neustartzähler), `docker volume ls` und `docker network ls`: **identisch**. Nach dem Test **0** Container `pai-p23-*` und
+   **0** Netzwerke `pai-p23-qa-*`. Die produktive Console antwortete weiter unter `127.0.0.1:38881/health`.
+4. Regression auf demselben Stand: Python-Gesamtsuite **83/83** (60,8 s, Projekt-`.venv`), `test_chat_history.cjs` 11 Fälle,
+   `test_p23_browser.cjs` 23 Assertions.
+
+**Grenzen unverändert:** simulierter Ollama-Upstream, kein echter Browser, kein Nachweis, dass ein Client-Abbruch die
+Upstream-Berechnung beendet. PR bleibt Draft; kein Produktivdeploy oder Merge. Die QA-Images bleiben lokal liegen
+(etwa 400 MB zuzüglich `python:3.13-slim`); entfernen mit
+`docker rmi private-ai-p23-console:qa-current private-ai-p23-gateway:qa`.
+
