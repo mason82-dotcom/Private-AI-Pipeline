@@ -16,6 +16,7 @@
 | MCP-Aktionen | stdio; default read-only | Clientinteroperabilität und Zustimmung zu Schreibrechten |
 | Backup-Vertraulichkeit | Daten und `.env` zusammen im Archive, **nicht verschlüsselt** | verschlüsselte Ablage, Berechtigungen und Restore-Drills |
 | Lieferkette | Docker-Tags nicht auf Digest fixiert | SBOM, Reproduzierbarkeit, CVE-Review |
+| RAG-Dokument-Injection | Quellen als maskiertes JSON in einem unvertrauenswürdigen Datenblock; keine Toolrechte im RAG-Pfad | Modellbasierter Angriffskorpus und Autorisierungsschicht vor jeder Toolfreigabe |
 
 ## Sichere Freigabeabfolge
 
@@ -33,6 +34,7 @@
 - Gateway: unzulässiger URL-Host und Redirects abgelehnt; kein ungewolltes Fallback.
 - Streaming: Client-Abbruch, Timeout, ungültige SSE-Frames, große Frames und begrenztes Antwortvolumen.
 - Daten: Import ohne Symlink-Traversal, Maximalgrößen, isolierte Namespaces, Legacy-Migration.
+- RAG: Angriffsdokumente können die JSON-Promptgrenze nicht schließen oder zusätzliche Rollen erzeugen; modellbasierte Befolgungstests bleiben separates Gate.
 - Offline: DNS, HTTP, HTTPS aus allen rein internen Containern unzulässig. Für LAN-Overlay nur explizite private IP/Port erlaubt.
 - Recovery: SHA, SQLite `PRAGMA integrity_check`, Open WebUI-Neustart und Erhaltung vorhandener Benutzer/Chats, **nur in Wegwerf-Testvolumes**.
 - Host: SkyHub-Next, Forgejo, Mosquitto und Tailscale laufen nach Tests unverändert weiter.
